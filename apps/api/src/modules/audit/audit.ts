@@ -1,0 +1,53 @@
+import type { Executor } from '../../platform/db.js';
+
+export const AUDIT_ACTIONS = [
+  'auth.login',
+  'auth.login_failed',
+  'auth.logout',
+  'auth.refresh_reuse_detected',
+  'auth.password_changed',
+  'user.created',
+  'user.updated',
+  'user.roles_changed',
+  'user.deactivated',
+  'user.activated',
+  'department.created',
+] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+export interface AuditEntry {
+  actorId?: string | null;
+  action: AuditAction;
+  targetType?: string;
+  targetId?: string;
+  /** Small, non-sensitive facts (ids, old/new roles). Never put passwords, tokens or secrets here. */
+  metadata?: Record<string, unknown>;
+  requestId?: string;
+  ip?: string;
+}
+
+/**
+ * Appends one audit record. Pass the active transaction client so the record commits (or rolls
+ * back) together with the change it describes.
+ */
+export async function recordAudit(db: Executor, entry: AuditEntry): Promise<void> {
+  await db.query(
+    `INSERT INTO audit_log (actor_id, action, target_type, target_id, metadata, request_id, ip)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      entry.actorId ?? null,
+      entry.action,
+      entry.targetType ?? null,
+      entry.targetId ?? null,
+      JSON.stringify(entry.metadata ?? {}),
+      entry.requestId ?? null,
+      entry.ip ?? null,
+    ],
+  );
+}
+
+/** Request details every audited action should carry. */
+export interface RequestMeta {
+  requestId?: string;
+  ip?: string;
+}

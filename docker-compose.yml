@@ -1,0 +1,94 @@
+# Local development stack.
+#
+#   Infrastructure only (daily development; run API/web/worker with `npm run dev`):
+#       docker compose up -d db mailpit
+#   Everything in containers (closest to a deployment):
+#       docker compose --profile app up --build
+#
+# Secrets come from .env (create it with `npm run setup:env`). Nothing secret is stored in this file.
+name: college-events
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?run npm run setup:env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run npm run setup:env}
+      POSTGRES_DB: ${POSTGRES_DB:-events_dev}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Creates the separate "events_test" database on first start only.
+      - ./infra/postgres/init-test-db.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Catches all outgoing email in development. Web UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+
+  migrate:
+    profiles: [app]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ['node', 'dist/cli/migrate.js']
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-events_dev}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: 'no'
+
+  api: &api
+    profiles: [app]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment: &api-env
+      NODE_ENV: production
+      PORT: '4000'
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-events_dev}
+      JWT_SECRET: ${JWT_SECRET:?run npm run setup:env}
+      CORS_ORIGINS: http://localhost:8080
+      WEB_BASE_URL: http://localhost:8080
+      TRUST_PROXY: 'true'
+      # Plain HTTP on localhost. Set to true (and terminate TLS) for any real deployment.
+      COOKIE_SECURE: 'false'
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      STORAGE_DIR: /data/storage
+    volumes:
+      - storage-data:/data/storage
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    <<: *api
+    command: ['node', 'dist/worker.js']
+    healthcheck: { disable: true }
+
+  web:
+    profiles: [app]
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    ports:
+      - '127.0.0.1:8080:80'
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  db-data:
+  storage-data:

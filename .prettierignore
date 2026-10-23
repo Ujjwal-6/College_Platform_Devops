@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.local
+/storage
+/apps/api/storage
+package-lock.json
+docs
+CLAUDE.md
+*.sql
+.env*
