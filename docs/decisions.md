@@ -83,9 +83,9 @@ Decide by available student credits and team familiarity. R1 is cloud-agnostic (
 |---|---|---|---|
 | U-1 | How do users join? | **Approved (2026-10-23): accounts are admin-created only in the initial release. No public self-registration.** | feature 1 |
 | U-2 | Can approvers delegate or have substitutes? | Not in R1 | feature 6 |
-| U-3 | Calendar defaults: which entry types block vs. warn? Can an admin override a block? | Exam periods and holidays = block, major fests = warn, no override | feature 20, bookings |
-| U-4 | Is the chain always Faculty → HOD → Admin, or does it vary by event type/budget? | Always all levels | feature 6 |
-| U-5 | After rejection, can the organizer edit and resubmit? Are edits after approval allowed? | Rejection → draft with comments; edits after approval send the event back to the start of the chain | features 2, 6 |
+| U-3 | Calendar defaults and override | **Resolved 2026-10-23 (engineer recommendation accepted):** exam periods and holidays block, major fests, academic dates and other entries warn; each entry can override its own severity; **no override of a block**; the guard applies on event **submission** (drafts save with a visible warning); calendar changes never alter existing events (admin conflict list instead) | feature 20, bookings |
+| U-4 | Is the chain always Faculty → HOD → Admin, or does it vary? | **Resolved 2026-10-23: always all three levels, strictly in order** | feature 6 |
+| U-5 | After rejection, can the organizer edit and resubmit? Edits after approval? | **Resolved 2026-10-23:** rejection at any level returns the event to draft (no stored `rejected` state) with the comment shown; resubmission starts a new round at Faculty. Material edits after approval need an explicit `revise` (back to draft); small corrections apply in place | features 2, 6 |
 | U-6 | Certificate eligibility: attendance only, or attendance + feedback? Winner/participant types? | Checked-in attendees get a participation certificate | feature 8 |
 | U-7 | Report template, content fields, photo limits, reopening rule | Simple internal layout; JPEG/PNG ≤ 5 MB each, ≤ 20 photos; no reopening, regeneration is a separate versioned action | feature 19 |
 | U-8 | Who may check people in at the gate (volunteers as a role, or organizer only)? | Organizer plus volunteers they assign | feature 7 |
@@ -129,3 +129,19 @@ Kubernetes · microservices · predictive/ML risk scoring · multi-region DR · 
 | U-17 | Who is the Faculty approver: any faculty of the event's department, or a faculty coordinator named by the organizer? | Any active faculty of the event's department (current user model supports this without change) | Approvals |
 | U-18 | Which department does an event belong to when the organizer has none (students/organizers may have `departmentId = null`)? | The organizer chooses a department when creating the event; the API validates it exists | Event creation |
 | C-1 | Event/booking shared contract (I-3, I-7, I-8) is not yet written as code | Member 1 publishes the `events` table columns, state names and the `transition` hook points first; see `docs/implementation-roadmap.md` | Booking integration |
+
+## 8. Event Management & Approvals: decisions made (2026-10-23)
+
+| ID | Decision | Status |
+|---|---|---|
+| U-16 | One person cannot decide two levels of the same submission round (service check + database unique constraint) | Approved (default accepted) |
+| U-17 | The Faculty approver is any active faculty member of the event's department, other than the organizer | Approved (default accepted) |
+| U-18 | Non-admin creators create events only for their own department; admins choose the department; an organizer without a department must have one assigned first (409 `NO_DEPARTMENT`) | Approved (default accepted) |
+| Q-creators | Event creators: student heads (the `organizer` role), faculty, HODs and admins. Plain students cannot | Approved |
+| Q-states | States: `draft`, `pending_approval` (+ `approval_level`), `approved`, `published`, `closed`, `cancelled`. Publishing is a separate step after approval; closing is explicit and only after the end time | Approved |
+| Q-deadlock | If a level has no eligible person other than the organizer, or the same few people would have to decide two levels, submission is refused (409 `NO_APPROVER_AVAILABLE`); admins do not stand in for lower levels | Approved (default accepted) |
+| Q-regfields | The event carries registration configuration for Member 3 now (capacity, individual/team, team sizes, deadline) | Approved |
+| D-16 | Migration number ranges per owner: Member 1 `010–019` (used `010–012`), Member 2 `020–029`, Member 3 `030–039` | Approved |
+| C-1 | The event contract is written: `docs/event-contract.md` | Done |
+
+Edited-in-place note: migration `011_event_approvals.sql` was corrected before it was ever committed or shared (a CHECK constraint let a rejection with a `NULL` comment through); only local databases had applied it and they were rebuilt. Migrations that are committed must never be edited this way.

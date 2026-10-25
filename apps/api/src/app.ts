@@ -6,8 +6,11 @@ import { randomUUID } from 'node:crypto';
 import { pinoHttp } from 'pino-http';
 import type { AppContext } from './context.js';
 import { createErrorHandler, notFoundHandler } from './platform/errors.js';
+import { approvalRoutes } from './modules/approvals/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { calendarRoutes } from './modules/calendar/routes.js';
 import { departmentRoutes } from './modules/departments/routes.js';
+import { eventRoutes } from './modules/events/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { userRoutes } from './modules/users/routes.js';
 
@@ -52,6 +55,9 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api/auth', authRoutes(ctx));
   app.use('/api/users', userRoutes(ctx));
   app.use('/api/departments', departmentRoutes(ctx));
+  app.use('/api/calendar', calendarRoutes(ctx));
+  app.use('/api/events', eventRoutes(ctx));
+  app.use('/api/events', approvalRoutes(ctx));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));
