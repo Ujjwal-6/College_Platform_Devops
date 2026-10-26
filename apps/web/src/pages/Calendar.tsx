@@ -65,8 +65,10 @@ export function Calendar() {
     <section className="card">
       <h1>Academic calendar</h1>
       <p className="muted">
-        Events cannot be submitted on <strong>blocked</strong> dates. <strong>Warning</strong> dates
-        are allowed, but approvers are told.
+        The calendar is a <strong>suggestion</strong>: organizers are told when an event or hall
+        booking overlaps an entry here, and approvers see it, but nothing is ever refused.{' '}
+        <strong>Restricted</strong> entries (exam periods, holidays) are shown more strongly than{' '}
+        <strong>notices</strong>.
       </p>
       {error && (
         <p role="alert" className="error">
@@ -101,7 +103,7 @@ export function Calendar() {
                   ? formatDate(e.startDate)
                   : `${formatDate(e.startDate)} – ${formatDate(e.endDate)}`}
               </td>
-              <td>{e.severity === 'block' ? 'Blocked' : 'Warning'}</td>
+              <td>{e.severity === 'block' ? 'Restricted' : 'Notice'}</td>
               <td>{deptName(e.departmentId)}</td>
               {isAdmin && (
                 <td>
@@ -236,8 +238,8 @@ function NewEntry({
             onChange={(e) => setForm({ ...form, severity: e.target.value })}
           >
             <option value="">Default for the type</option>
-            <option value="block">Block submissions</option>
-            <option value="warn">Warn only</option>
+            <option value="block">Restricted (strong suggestion)</option>
+            <option value="warn">Notice</option>
           </select>
         </label>
         <label>

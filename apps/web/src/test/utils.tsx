@@ -27,13 +27,22 @@ export const json = (status: number, body: unknown) =>
 
 export type Handler = (url: string, init?: RequestInit) => Promise<Response>;
 
+/** Calls the event page makes on its own (bookings, reservations, resource availability): empty unless a test says otherwise. */
+function defaultHandler(key: string): (() => Promise<Response>) | undefined {
+  if (key.startsWith('GET /api/bookings?scope=event'))
+    return () => json(200, { data: [], page: { limit: 100, offset: 0, total: 0 } });
+  if (key.startsWith('GET /api/resource-reservations?')) return () => json(200, { data: [] });
+  if (key.startsWith('GET /api/resources/availability?')) return () => json(200, { data: [] });
+  return undefined;
+}
+
 /** Replaces fetch with a handler keyed on "METHOD /path". Unmatched calls fail the test loudly. */
 export function mockFetch(routes: Record<string, () => Promise<Response>>) {
   const calls: { key: string; init?: RequestInit }[] = [];
   const fn = vi.fn(async (url: string, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${url}`;
     calls.push({ key, init });
-    const handler = routes[key];
+    const handler = routes[key] ?? defaultHandler(key);
     if (!handler) throw new Error(`Unexpected request: ${key}`);
     return handler();
   });
@@ -127,3 +136,71 @@ export const withActions = (
   const base = makeEvent();
   return makeEvent({ actions: { ...base.actions, ...actions }, ...over });
 };
+
+export function makeBooking(over: Record<string, unknown> = {}) {
+  return {
+    id: 'b1',
+    eventId: 'e1',
+    hallId: 'h1',
+    hallName: 'Main Hall',
+    eventTitle: 'Tech Symposium',
+    startAt: '2031-03-01T04:30:00.000Z',
+    endAt: '2031-03-01T06:30:00.000Z',
+    status: 'pending',
+    approvalLevel: 'faculty',
+    requiredFacilities: [],
+    notes: '',
+    warnings: [],
+    requestedByName: 'Olive Organizer',
+    closingComment: null,
+    coversEvent: true,
+    hall: {
+      id: 'h1',
+      name: 'Main Hall',
+      location: 'Block A',
+      capacity: 200,
+      facilities: ['projector'],
+      isActive: true,
+    },
+    event: {
+      id: 'e1',
+      title: 'Tech Symposium',
+      status: 'draft',
+      startAt: '2031-03-01T04:30:00.000Z',
+      endAt: '2031-03-01T06:30:00.000Z',
+      expectedAttendance: 120,
+    },
+    approvals: [],
+    history: [
+      {
+        id: 1,
+        action: 'request',
+        actorName: 'Olive Organizer',
+        level: 'faculty',
+        comment: null,
+        createdAt: '2031-01-01T00:00:00Z',
+      },
+    ],
+    actions: { canEdit: false, canCancel: false, canApprove: false },
+    ...over,
+  };
+}
+export const withBookingActions = (
+  actions: Record<string, boolean>,
+  over: Record<string, unknown> = {},
+) =>
+  makeBooking({
+    actions: { canEdit: false, canCancel: false, canApprove: false, ...actions },
+    ...over,
+  });
+
+export const hall = (over: Record<string, unknown> = {}) => ({
+  id: 'h1',
+  name: 'Main Hall',
+  location: 'Block A',
+  capacity: 200,
+  facilities: ['projector', 'ac'],
+  description: '',
+  isActive: true,
+  ...over,
+});

@@ -63,7 +63,7 @@ export function buildTestApp(overrides: Record<string, string> = {}): TestApp {
 
 export async function resetDb(ctx: AppContext): Promise<void> {
   await ctx.pool.query(
-    'TRUNCATE jobs, audit_log, refresh_tokens, event_history, event_approvals, event_speakers, events, calendar_entries, user_roles, users, departments RESTART IDENTITY CASCADE',
+    'TRUNCATE jobs, audit_log, refresh_tokens, resource_reservations, booking_history, booking_approvals, hall_bookings, resources, halls, event_history, event_approvals, event_speakers, events, calendar_entries, user_roles, users, departments RESTART IDENTITY CASCADE',
   );
 }
 
@@ -254,4 +254,81 @@ export async function approveFully(
     if (res.status !== 200)
       throw new Error(`approve ${level} failed: ${res.status} ${JSON.stringify(res.body)}`);
   }
+}
+
+// ---- hall booking & resource helpers ---------------------------------------------------------------
+
+export async function createHall(
+  t: TestApp,
+  admin: LoggedIn,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const res = await as(t, admin).post('/api/halls', {
+    name: `Hall ${Math.random().toString(36).slice(2, 8)}`,
+    capacity: 200,
+    facilities: ['projector', 'ac'],
+    ...overrides,
+  });
+  if (res.status !== 201)
+    throw new Error(`createHall failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return res.body.data.id as string;
+}
+
+export async function createResource(
+  t: TestApp,
+  admin: LoggedIn,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const res = await as(t, admin).post('/api/resources', {
+    name: `Resource ${Math.random().toString(36).slice(2, 8)}`,
+    category: 'av',
+    quantity: 5,
+    ...overrides,
+  });
+  if (res.status !== 201)
+    throw new Error(`createResource failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return res.body.data.id as string;
+}
+
+/** A booking request body for an event and hall, defaulting to the event's own time range. */
+export function bookingBody(
+  eventId: string,
+  hallId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return { eventId, hallId, ...futureRange(), ...overrides };
+}
+
+/** An event that went through all three approval levels (status "approved"). */
+export async function createApprovedEvent(
+  t: TestApp,
+  org: Org,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const id = await createDraft(t, org.organizer, overrides);
+  const sub = await as(t, org.organizer).post(`/api/events/${id}/submit`);
+  if (sub.status !== 200)
+    throw new Error(`submit failed: ${sub.status} ${JSON.stringify(sub.body)}`);
+  await approveFully(t, id, { faculty: org.faculty, hod: org.hod, admin: org.admin });
+  return id;
+}
+
+/** Books a hall for an event and walks the booking through both approval steps. Returns the booking id. */
+export async function createConfirmedBooking(
+  t: TestApp,
+  org: Org,
+  eventId: string,
+  hallId: string,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const res = await as(t, org.organizer).post(
+    '/api/bookings',
+    bookingBody(eventId, hallId, { acknowledgeWarnings: true, ...overrides }),
+  );
+  if (res.status !== 201)
+    throw new Error(`booking failed: ${res.status} ${JSON.stringify(res.body)}`);
+  const id = res.body.data.id as string;
+  await as(t, org.faculty).post(`/api/bookings/${id}/approve`, { level: 'faculty' });
+  await as(t, org.hod).post(`/api/bookings/${id}/approve`, { level: 'hod_admin' });
+  return id;
 }

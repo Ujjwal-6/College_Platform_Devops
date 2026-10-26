@@ -325,29 +325,35 @@ describe('event page', () => {
     expect(screen.getByText(/approved again/)).toBeInTheDocument();
   });
 
-  it('lists the restricted dates when submission is refused by the calendar', async () => {
-    open(
+  it('submits even when the calendar overlaps: it only suggests', async () => {
+    const blocks = [
       {
-        'GET /api/events/e1': () => json(200, { data: withActions({ canSubmit: true }) }),
-        'POST /api/events/e1/submit': () =>
-          json(422, {
-            error: {
-              code: 'CALENDAR_BLOCKED',
-              message: 'The event dates fall on restricted academic dates',
-              details: {
-                entries: [
-                  { title: 'End-semester exams', startDate: '2031-03-01', endDate: '2031-03-10' },
-                ],
-              },
-            },
+        id: 'c1',
+        title: 'End-semester exams',
+        startDate: '2031-03-01',
+        endDate: '2031-03-10',
+        type: 'exam_period',
+        severity: 'block',
+        departmentId: null,
+        isActive: true,
+      },
+    ];
+    const { calls } = open(
+      {
+        'GET /api/events/e1': () =>
+          json(200, {
+            data: withActions({ canSubmit: true }, { calendar: { blocks, warnings: [] } }),
           }),
+        'POST /api/events/e1/submit': () => json(200, { data: {} }),
       },
       organizerUser,
     );
+    expect(await screen.findByText(/only a suggestion/)).toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Submit for approval' }));
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('restricted academic dates');
-    expect(alert).toHaveTextContent('End-semester exams');
+    await waitFor(() =>
+      expect(calls.some((c) => c.key === 'POST /api/events/e1/submit')).toBe(true),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('warns about blocked and soft calendar conflicts before submission', async () => {
@@ -382,9 +388,7 @@ describe('event page', () => {
       },
       organizerUser,
     );
-    expect(
-      await screen.findByText(/cannot be submitted until the dates change/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/only a suggestion/)).toBeInTheDocument();
     expect(screen.getByText(/Approvers will see this/)).toBeInTheDocument();
   });
 
@@ -528,7 +532,7 @@ describe('academic calendar page', () => {
     });
     renderApp('/calendar');
     expect(await screen.findByText('End-semester exams')).toBeInTheDocument();
-    expect(screen.getByText('Blocked')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Restricted' })).toBeInTheDocument();
     expect(screen.queryByRole('form', { name: 'Add calendar entry' })).not.toBeInTheDocument();
   });
 

@@ -61,6 +61,13 @@ export function createErrorHandler(logger: Logger): ErrorRequestHandler {
         details: zodDetails(err),
         requestId,
       };
+    } else if (isRetryableDbConflict(err)) {
+      status = 409;
+      body = {
+        code: 'TRY_AGAIN',
+        message: 'Too many people changed this at once. Please try again',
+        requestId,
+      };
     } else if (isHttpError(err)) {
       // body-parser errors (malformed JSON, payload too large)
       status = err.status;
@@ -93,4 +100,10 @@ function isHttpError(err: unknown): err is { status: number; type: string } {
     (err as { status: number }).status >= 400 &&
     (err as { status: number }).status < 500
   );
+}
+
+function isRetryableDbConflict(err: unknown): boolean {
+  const code =
+    typeof err === 'object' && err !== null ? (err as { code?: string }).code : undefined;
+  return code === '40P01' || code === '40001';
 }

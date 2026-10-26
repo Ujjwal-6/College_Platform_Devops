@@ -38,6 +38,8 @@ export interface CalendarWarningSnapshot {
   title: string;
   startDate: string;
   endDate: string;
+  /** 'block' = restricted period (strong advisory), 'warn' = notice. Neither stops anything. */
+  severity: 'block' | 'warn';
 }
 
 export interface EventRecord {

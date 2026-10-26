@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { EventDetail as Detail } from '../api/types';
+import { EventBookings } from '../components/EventBookings';
 import { levelLabel, StatusBadge } from '../components/StatusBadge';
 import { formatDate, formatDateTime } from '../lib/datetime';
 
@@ -108,12 +109,12 @@ export function EventDetailPage() {
         </p>
       )}
       {event.calendar && event.calendar.blocks.length > 0 && (
-        <p className="notice notice-error" role="note">
-          These dates fall on restricted academic dates (
+        <p className="notice" role="note">
+          Heads-up: these dates fall on a restricted academic period (
           {event.calendar.blocks
             .map((b) => `${b.title}, ${formatDate(b.startDate)}–${formatDate(b.endDate)}`)
             .join('; ')}
-          ). The event cannot be submitted until the dates change.
+          ). This is only a suggestion: you can still submit the event, and approvers will see it.
         </p>
       )}
       {event.calendar && event.calendar.warnings.length > 0 && (
@@ -160,21 +161,6 @@ export function EventDetailPage() {
       {problem && (
         <div role="alert" className="error">
           <p>{typeof problem === 'string' ? problem : problem.message}</p>
-          {typeof problem !== 'string' && problem.code === 'CALENDAR_BLOCKED' && (
-            <ul>
-              {(
-                (
-                  problem.details as {
-                    entries?: { title: string; startDate: string; endDate: string }[];
-                  }
-                )?.entries ?? []
-              ).map((e, i) => (
-                <li key={i}>
-                  {e.title}: {formatDate(e.startDate)} – {formatDate(e.endDate)}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
 
@@ -348,6 +334,7 @@ export function EventDetailPage() {
           </ol>
         </>
       )}
+      {event.workflow && <EventBookings key={event.status} event={event} />}
     </article>
   );
 }

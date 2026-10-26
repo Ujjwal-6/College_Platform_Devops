@@ -454,20 +454,14 @@ export async function submitEvent(ctx: AppContext, actor: AuthUser, id: string, 
     assertCanTransition(event, 'submit');
     notInPast(event.startAt, 'startAt');
 
-    // Academic calendar guard: hard conflicts refuse the submission, soft ones travel with it to the approvers.
+    // Academic calendar: advisory only. Every overlapping entry (restricted periods and notices alike)
+    // travels with the submission so approvers can see it; nothing here refuses the submission.
     const check = await checkRange(tx, ctx.config.APP_TIMEZONE, {
       startAt: event.startAt,
       endAt: event.endAt,
       departmentId: event.departmentId,
     });
-    if (check.blocks.length) {
-      throw new AppError(
-        422,
-        'CALENDAR_BLOCKED',
-        'The event dates fall on restricted academic dates',
-        { entries: check.blocks },
-      );
-    }
+    const advisories = [...check.blocks, ...check.warnings];
     await assertApprovable(tx, event);
 
     const updated = await applyTransition(tx, {
@@ -481,19 +475,20 @@ export async function submitEvent(ctx: AppContext, actor: AuthUser, id: string, 
         approvalLevel: 'faculty',
         submissionRound: event.submissionRound + 1,
         submittedAt: repo.NOW,
-        calendarWarnings: check.warnings.map((w) => ({
+        calendarWarnings: advisories.map((w) => ({
           id: w.id,
           type: w.type,
           title: w.title,
           startDate: w.startDate,
           endDate: w.endDate,
+          severity: w.severity,
         })),
         lastRejectionLevel: null,
         lastRejectionComment: null,
         lastRejectedBy: null,
         lastRejectedAt: null,
       },
-      auditMetadata: { round: event.submissionRound + 1, warnings: check.warnings.length },
+      auditMetadata: { round: event.submissionRound + 1, calendarAdvisories: advisories.length },
     });
     await notifyApprovers(ctx, tx, updated, 'faculty');
   });

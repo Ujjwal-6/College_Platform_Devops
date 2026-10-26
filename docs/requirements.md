@@ -90,6 +90,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 
 ## 4. Hall booking, availability, conflict detection, concurrency safety — R1 [P]
 
+> **As built (2026-10-23):** halls, availability search, booking with its own Faculty → (HOD or Admin) approval, warnings the organizer acknowledges (capacity, facilities, calendar, event time), database-enforced no-overlap (exclusion constraint), automatic cancellation with the event. FR-4.5 is met as an advisory warning; AC-4.5 ("a failed calendar guard creates no booking") is replaced by "calendar overlaps need acknowledgement". Details and limits: `docs/booking-design.md`.
+
 **Functional requirements**
 - FR-4.1 Hall catalogue: name, capacity, location, features, active flag (admin-managed).
 - FR-4.2 Availability query by hall and date range.
@@ -111,6 +113,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 - AC-4.5 A booking request that fails the calendar guard creates no booking row.
 
 ## 5. Equipment and resource management — R1 [P]
+
+> **As built (2026-10-23):** resource catalogue, quantity-aware reservations for approved events, peak-usage allocation under a row lock, release on event cancel/revise. FR-5.5 (condition tracking) is limited to a status (available / maintenance / retired). Details: `docs/booking-design.md`.
 
 **Functional requirements**
 - FR-5.1 Equipment catalogue with total quantity; admin-managed.
@@ -314,7 +318,7 @@ Load balancing, microservices, Kubernetes, cloud scaling and disaster recovery. 
 
 ## 20. Academic calendar guard — R1 [N]
 
-> **As built (2026-10-23):** the guard is enforced on **event submission** (hard blocks refuse; warnings are stored for approvers; no override of a block, U-3). Enforcement on hall bookings is added by the booking feature using the same `checkRange` service. Acceptance tests AT-20.1–20.9 are implemented for event submission in `apps/api/test/calendar.test.ts`.
+> **As built (2026-10-23, revised):** the calendar is **advisory everywhere**. Event submission and hall bookings show overlapping entries as suggestions and record them for approvers; nothing is refused (U-3 revised). Acceptance tests AT-20.1–20.9 are implemented for event submission in `apps/api/test/calendar.test.ts` with that meaning (the entry is recorded, the submission succeeds). AT-20.10 (parallel bookings on a blocked date) no longer applies: bookings on restricted dates are allowed after acknowledgement. Hall-scoped entries were not built.
 
 **Functional requirements**
 - FR-20.1 Admins create, edit, deactivate and delete calendar entries: type (`exam_period`, `holiday`, `major_fest`, `academic_date`, other configurable), title, date range, optional scope (all halls / specific halls / specific departments), and a severity of `block` or `warn`.
@@ -325,7 +329,7 @@ Load balancing, microservices, Kubernetes, cloud scaling and disaster recovery. 
 
 **Edge cases:** booking partly overlapping an entry; multi-day entry; booking spanning two entries (one block, one warn → block wins); scoped entry that does not apply to the requested hall/department; entries edited after bookings exist; time zone boundaries at midnight; deactivated entry ignored.
 
-**Acceptance tests**
+**Acceptance tests** *(original wording. Superseded in part: the calendar is now advisory, see the as-built note above; where a test says "422" or "no booking row", the implemented behaviour is "the overlap is recorded / shown as a warning and the action succeeds")*
 - AT-20.1 *Given* a `block` entry for 10–15 Nov (exam period), *when* an organizer books a hall on 12 Nov, *then* the API returns 422 with the entry's title and no booking row is created.
 - AT-20.2 *Given* a `warn` entry for a fest on 20 Nov, *when* a booking is made on 20 Nov, *then* the booking is created and the response includes the warning; the warning is visible to approvers.
 - AT-20.3 *Given* a booking range overlapping both a `warn` and a `block` entry, *then* the booking is rejected and both entries are reported.

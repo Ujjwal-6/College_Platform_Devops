@@ -104,3 +104,116 @@ export interface EventDetail extends EventSummary {
   actions: EventActions;
   materialFields: string[];
 }
+
+// ---- halls, bookings, resources ---------------------------------------------------------------
+
+export interface Hall {
+  id: string;
+  name: string;
+  location: string;
+  capacity: number;
+  facilities: string[];
+  description: string;
+  isActive: boolean;
+}
+
+export interface HallConflict {
+  bookingId: string;
+  startAt: string;
+  endAt: string;
+  status: BookingStatus;
+  eventTitle: string | null;
+}
+
+export interface HallAvailability {
+  hall: Hall;
+  available: boolean;
+  conflicts: HallConflict[];
+  capacityOk: boolean;
+  missingFacilities: string[];
+}
+
+export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
+export type BookingLevel = 'faculty' | 'hod_admin';
+
+export interface BookingWarning {
+  code: 'CAPACITY' | 'FACILITIES' | 'CALENDAR' | 'EVENT_TIME';
+  message: string;
+}
+
+export interface BookingSummary {
+  id: string;
+  eventId: string;
+  hallId: string;
+  hallName: string | null;
+  eventTitle: string | null;
+  startAt: string;
+  endAt: string;
+  status: BookingStatus;
+  approvalLevel: BookingLevel | null;
+  requiredFacilities: string[];
+  notes: string;
+  warnings: BookingWarning[];
+}
+
+export interface BookingDetail extends BookingSummary {
+  requestedByName: string | null;
+  closingComment: string | null;
+  coversEvent: boolean;
+  hall: Pick<Hall, 'id' | 'name' | 'location' | 'capacity' | 'facilities' | 'isActive'> | null;
+  event: {
+    id: string;
+    title: string;
+    status: EventStatus;
+    startAt: string;
+    endAt: string;
+    expectedAttendance: number;
+  } | null;
+  approvals: {
+    id: string;
+    round: number;
+    level: BookingLevel;
+    decision: 'approved' | 'rejected';
+    approverName: string | null;
+    comment: string | null;
+    decidedAt: string;
+  }[];
+  history: {
+    id: number;
+    action: string;
+    actorName: string | null;
+    level: BookingLevel | null;
+    comment: string | null;
+    createdAt: string;
+  }[];
+  actions: { canEdit: boolean; canCancel: boolean; canApprove: boolean };
+}
+
+export interface Resource {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  description: string;
+  status: 'available' | 'maintenance' | 'retired';
+}
+
+export interface ResourceAvailability {
+  resource: Resource;
+  inUse: number;
+  available: number;
+}
+
+export interface Reservation {
+  id: string;
+  resourceId: string;
+  resourceName?: string;
+  resourceCategory?: string;
+  eventId: string;
+  quantity: number;
+  startAt: string;
+  endAt: string;
+  notes: string;
+  status: 'confirmed' | 'released';
+  releaseReason: string | null;
+}
