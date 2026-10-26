@@ -65,26 +65,30 @@ All configuration is read from environment variables and validated at startup (`
 
 ```
 apps/api/        Express API, job worker, migrations, tests
-  src/modules/     auth, users, departments, audit, notifications, health
+  src/modules/     auth, users, departments, audit, notifications, health,
+                   events, approvals, calendar (event lifecycle + academic calendar guard)
   src/platform/    db/transactions, errors, validation, logging, jobs, mailer, storage
   migrations/      versioned SQL migrations (node-pg-migrate)
-apps/web/        React app (login, role-aware navigation, user administration)
+apps/web/        React app (login, users, events, approvals, academic calendar)
 infra/postgres/  database bootstrap for Docker
 docs/            requirements, architecture, decisions, roadmap, testing, status
 ```
 
 ## Building blocks for feature developers
 
-| Need                       | Use                                                                                           |
-| -------------------------- | --------------------------------------------------------------------------------------------- |
-| Protect a route            | `requireAuth(ctx)` then `requireRole(...)`; department scope via `assertDepartmentScope`      |
-| Validate input             | `parse(zodStrictSchema, req.body)` (unknown fields are rejected)                              |
-| Return errors              | throw `errors.*` / `AppError`; one JSON error format with `code` and `requestId`              |
-| Multi-step change          | `withTx(pool, async (tx) => { ... })`; pass `tx` to every repository call                     |
-| Audit a change             | `recordAudit(tx, { actorId, action, targetType, targetId, ... })` in the same transaction     |
-| Run work in the background | `enqueue(tx, { type, payload, key })` and `worker.register(type, handler)` in `src/worker.ts` |
-| Send an email              | add a template in `modules/notifications/templates.ts`, call `notify(tx, {...})`              |
-| Store a PDF or image       | `ctx.storage.put({ data, allowed, maxBytes })`, serve with `sendStoredFile`                   |
+| Need                               | Use                                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Protect a route                    | `requireAuth(ctx)` then `requireRole(...)`; department scope via `assertDepartmentScope`                                              |
+| Validate input                     | `parse(zodStrictSchema, req.body)` (unknown fields are rejected)                                                                      |
+| Return errors                      | throw `errors.*` / `AppError`; one JSON error format with `code` and `requestId`                                                      |
+| Multi-step change                  | `withTx(pool, async (tx) => { ... })`; pass `tx` to every repository call                                                             |
+| Audit a change                     | `recordAudit(tx, { actorId, action, targetType, targetId, ... })` in the same transaction                                             |
+| Run work in the background         | `enqueue(tx, { type, payload, key })` and `worker.register(type, handler)` in `src/worker.ts`                                         |
+| Send an email                      | add a template in `modules/notifications/templates.ts`, call `notify(tx, {...})`                                                      |
+| Store a PDF or image               | `ctx.storage.put({ data, allowed, maxBytes })`, serve with `sendStoredFile`                                                           |
+| React to event changes             | `registerEventHook(async (tx, { event, action }) => ...)` from `modules/events/index.ts` (runs in the action's transaction, may veto) |
+| Check academic dates               | `checkRange(db, ctx.config.APP_TIMEZONE, { startAt, endAt, departmentId })` → `{ blocks, warnings }`                                  |
+| Is an event open for registration? | `isEligibleForRegistration(event)`; the full event contract is in `docs/event-contract.md`                                            |
 
 ## Security notes
 
@@ -96,4 +100,4 @@ docs/            requirements, architecture, decisions, roadmap, testing, status
 
 ## Known limitations
 
-See `docs/feature-status.md`. In short: no password reset, no self-registration, no `/metrics` endpoint yet, and the Docker/CI definitions have not been executed in every environment (see the status document for what was actually run).
+See `docs/feature-status.md`. In short: no password reset, no self-registration, no `/metrics` endpoint yet, events are closed by an explicit action only (no automatic closing), the new event screens have been tested with mocked-API component tests but not in a real browser, and the Docker/CI definitions have not been executed in every environment (see the status document for what was actually run).

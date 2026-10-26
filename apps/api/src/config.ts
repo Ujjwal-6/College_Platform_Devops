@@ -26,6 +26,19 @@ const schema = z.object({
   // the whole token family (covers two browser tabs refreshing at once). 0 disables the grace.
   REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).max(60).default(5),
 
+  // Calendar dates (exam periods, holidays) are interpreted in this IANA time zone (ASM-2).
+  APP_TIMEZONE: z
+    .string()
+    .default('Asia/Kolkata')
+    .refine((tz) => {
+      try {
+        new Intl.DateTimeFormat('en', { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'APP_TIMEZONE must be a valid IANA time zone'),
+
   CORS_ORIGINS: z
     .string()
     .default('http://localhost:5173')

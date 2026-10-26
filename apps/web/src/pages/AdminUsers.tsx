@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, fieldIssues } from '../api/client';
 import { ROLES, type Department, type ManagedUser, type Role } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 
@@ -102,10 +102,11 @@ function CreateUser({
       setForm({ name: '', email: '', password: '', departmentId: '' });
       await onCreated();
     } catch (err) {
+      const issues = fieldIssues(err);
       setErrors(
-        err instanceof ApiError
-          ? (err.details?.map((d) => d.message) ?? [err.message])
-          : ['Could not create user.'],
+        issues.length
+          ? issues.map((d) => d.message)
+          : [err instanceof ApiError ? err.message : 'Could not create user.'],
       );
     }
   }

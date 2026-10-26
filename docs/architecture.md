@@ -186,3 +186,7 @@ Backups: scheduled DB dump plus file-storage backup, with one tested restore bef
 | Four developers blocked by shared contracts | Freeze I-1..I-12 in Week 1 |
 | PDF rendering memory/time | Simple pdfkit-based layout first; render in the worker only |
 | Time zone errors | UTC storage, one display zone, tests around midnight and DST-free zone |
+
+## 13. Event contract (as built)
+
+The events, approvals and calendar modules are implemented. Their shared contract for the booking and registration features (identifiers, time zones, lifecycle, hooks, calendar guard, migration ranges) is in `docs/event-contract.md`. Module notes: `modules/events` owns events/speakers/history and the lifecycle; `modules/approvals` owns decisions and the approver rules and depends on events; `modules/calendar` owns academic calendar entries and the `checkRange` guard. Other modules use `modules/events/index.ts` as the public interface.

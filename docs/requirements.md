@@ -53,6 +53,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 
 ## 2. Event creation and management — R1 [P]
 
+> **As built (2026-10-23):** states are `draft`, `pending_approval`, `approved`, `published`, `closed`, `cancelled` (no stored `rejected`; a rejected event returns to `draft`). Full contract: `docs/event-contract.md`.
+
 **Functional requirements**
 - FR-2.1 Organizer creates a draft event: title, description, category, schedule, expected attendance, department, budget estimate, speakers, individual/team mode, team-size limits, capacity.
 - FR-2.2 Event states: `draft → pending_approval → approved → live → closed`, plus `rejected` and `cancelled`. Transitions are validated server-side in one state machine. [R: exact state names]
@@ -125,6 +127,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 - AC-5.3 Cancelling an event frees all its reservations.
 
 ## 6. Multi-level approvals: Organizer → Faculty → HOD → Admin — R1 [P]
+
+> **As built (2026-10-23):** rejection returns the event to draft and resubmission starts a new round at Faculty (U-5); always three levels in order (U-4); one person per level per round (U-16); Faculty = any active faculty of the event's department (U-17).
 
 **Functional requirements**
 - FR-6.1 Submitting an event creates an approval request that goes to Faculty, then HOD, then Admin, in that order. [P]
@@ -309,6 +313,8 @@ Load balancing, microservices, Kubernetes, cloud scaling and disaster recovery. 
 - AT-19.9 Closing the event returns before the PDF exists (the request is not blocked by generation).
 
 ## 20. Academic calendar guard — R1 [N]
+
+> **As built (2026-10-23):** the guard is enforced on **event submission** (hard blocks refuse; warnings are stored for approvers; no override of a block, U-3). Enforcement on hall bookings is added by the booking feature using the same `checkRange` service. Acceptance tests AT-20.1–20.9 are implemented for event submission in `apps/api/test/calendar.test.ts`.
 
 **Functional requirements**
 - FR-20.1 Admins create, edit, deactivate and delete calendar entries: type (`exam_period`, `holiday`, `major_fest`, `academic_date`, other configurable), title, date range, optional scope (all halls / specific halls / specific departments), and a severity of `block` or `warn`.

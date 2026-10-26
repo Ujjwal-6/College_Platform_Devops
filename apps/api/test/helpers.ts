@@ -63,7 +63,7 @@ export function buildTestApp(overrides: Record<string, string> = {}): TestApp {
 
 export async function resetDb(ctx: AppContext): Promise<void> {
   await ctx.pool.query(
-    'TRUNCATE jobs, audit_log, refresh_tokens, user_roles, users, departments RESTART IDENTITY CASCADE',
+    'TRUNCATE jobs, audit_log, refresh_tokens, event_history, event_approvals, event_speakers, events, calendar_entries, user_roles, users, departments RESTART IDENTITY CASCADE',
   );
 }
 
@@ -143,3 +143,115 @@ export async function loginAs(t: TestApp, user: TestUser): Promise<LoggedIn> {
 export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 export { authRepo };
+
+// ---- event feature helpers -------------------------------------------------------------------------
+
+/** Request helper bound to one signed-in user: `as(t, session).post('/api/events', body)`. */
+export function as(t: TestApp, session: { accessToken: string }) {
+  const auth = bearer(session.accessToken);
+  return {
+    get: (path: string) => request(t.app).get(path).set(auth),
+    post: (path: string, body?: object) =>
+      request(t.app)
+        .post(path)
+        .set(auth)
+        .send(body ?? {}),
+    patch: (path: string, body: object) => request(t.app).patch(path).set(auth).send(body),
+    put: (path: string, body: object) => request(t.app).put(path).set(auth).send(body),
+    delete: (path: string) => request(t.app).delete(path).set(auth),
+  };
+}
+
+/** ISO start/end (IST, +05:30) a number of days from now, 10:00 to 12:00 local time. */
+export function futureRange(daysAhead = 60, hours = 2): { startAt: string; endAt: string } {
+  const day = new Date(Date.now() + daysAhead * 86_400_000);
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(day);
+  const start = new Date(`${ymd}T10:00:00+05:30`);
+  return {
+    startAt: start.toISOString(),
+    endAt: new Date(start.getTime() + hours * 3_600_000).toISOString(),
+  };
+}
+
+/** The local calendar date (YYYY-MM-DD, IST) of an ISO instant. */
+export const istDate = (iso: string) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(iso));
+
+export function eventBody(overrides: Record<string, unknown> = {}) {
+  return {
+    title: 'Annual Tech Symposium',
+    description: 'Talks and workshops',
+    category: 'technical',
+    expectedAttendance: 120,
+    ...futureRange(),
+    ...overrides,
+  };
+}
+
+export interface Org {
+  cse: string;
+  ece: string;
+  organizer: LoggedIn; // student head, CSE
+  faculty: LoggedIn; // CSE
+  faculty2: LoggedIn; // CSE
+  hod: LoggedIn; // CSE
+  hod2: LoggedIn; // CSE
+  admin: LoggedIn;
+  admin2: LoggedIn;
+  otherFaculty: LoggedIn; // ECE
+  otherHod: LoggedIn; // ECE
+  otherOrganizer: LoggedIn; // ECE
+  student: LoggedIn; // plain student, CSE
+}
+
+/** Two departments with a full set of people, all signed in. */
+export async function buildOrg(t: TestApp): Promise<Org> {
+  const cse = await createTestDepartment(t.ctx, 'Computer Science');
+  const ece = await createTestDepartment(t.ctx, 'Electronics');
+  const mk = async (roles: Role[], departmentId: string | null) =>
+    loginAs(t, await createTestUser(t.ctx, { roles, departmentId }));
+  return {
+    cse,
+    ece,
+    organizer: await mk(['organizer'], cse),
+    faculty: await mk(['faculty'], cse),
+    faculty2: await mk(['faculty'], cse),
+    hod: await mk(['hod'], cse),
+    hod2: await mk(['hod'], cse),
+    admin: await mk(['admin'], null),
+    admin2: await mk(['admin'], null),
+    otherFaculty: await mk(['faculty'], ece),
+    otherHod: await mk(['hod'], ece),
+    otherOrganizer: await mk(['organizer'], ece),
+    student: await mk(['student'], cse),
+  };
+}
+
+/** Creates a draft through the API and returns its id. */
+export async function createDraft(
+  t: TestApp,
+  who: LoggedIn,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const res = await as(t, who).post('/api/events', eventBody(overrides));
+  if (res.status !== 201)
+    throw new Error(`createDraft failed: ${res.status} ${JSON.stringify(res.body)}`);
+  return res.body.data.id as string;
+}
+
+/** Walks an event through all three approval levels with the given people. */
+export async function approveFully(
+  t: TestApp,
+  id: string,
+  by: { faculty: LoggedIn; hod: LoggedIn; admin: LoggedIn },
+): Promise<void> {
+  for (const [level, who] of [
+    ['faculty', by.faculty],
+    ['hod', by.hod],
+    ['admin', by.admin],
+  ] as const) {
+    const res = await as(t, who).post(`/api/events/${id}/approve`, { level });
+    if (res.status !== 200)
+      throw new Error(`approve ${level} failed: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+}

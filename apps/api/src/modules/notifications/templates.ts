@@ -6,12 +6,86 @@ import type { MailMessage } from '../../platform/mailer.js';
  * (approval requested, registration confirmed, certificate ready, ...). Templates render plain text
  * only, so user-supplied values can never inject markup into a message.
  */
+/** User-supplied text must never be able to add header lines to an email subject. */
+const oneLine = (text: string) => text.replace(/[\r\n]+/g, ' ').trim();
+
 const templates = {
   'account.created': {
     data: z.object({ name: z.string(), loginUrl: z.string() }),
     render: (d: { name: string; loginUrl: string }): Omit<MailMessage, 'to'> => ({
       subject: 'Your College Events account',
       text: `Hello ${d.name},\n\nAn account has been created for you on the College Events platform.\nSign in at ${d.loginUrl} with the credentials your administrator gave you, and change your password after the first sign-in.\n`,
+    }),
+  },
+  'event.approval_requested': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      level: z.enum(['faculty', 'hod', 'admin']),
+      organizerName: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      level: string;
+      organizerName: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Approval needed: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\n${d.organizerName} submitted the event "${d.eventTitle}" and it is waiting for your ${d.level} approval.\nReview it at ${d.url}\n`,
+    }),
+  },
+  'event.decision': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      decision: z.enum(['approved', 'fully_approved', 'rejected']),
+      level: z.enum(['faculty', 'hod', 'admin']),
+      approverName: z.string(),
+      comment: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      decision: string;
+      level: string;
+      approverName: string;
+      comment: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => {
+      const outcome =
+        d.decision === 'fully_approved'
+          ? `has been fully approved (final approval by ${d.approverName}). You can now publish it.`
+          : d.decision === 'approved'
+            ? `was approved at the ${d.level} level by ${d.approverName} and moves to the next level.`
+            : `was rejected at the ${d.level} level by ${d.approverName}. It is back in draft: edit it and submit again.`;
+      return {
+        subject: oneLine(
+          `${d.decision === 'rejected' ? 'Event rejected' : 'Event approval update'}: ${d.eventTitle}`,
+        ),
+        text: `Hello ${d.name},\n\nYour event "${d.eventTitle}" ${outcome}\n${d.comment ? `\nComment: ${d.comment}\n` : ''}\nDetails: ${d.url}\n`,
+      };
+    },
+  },
+  'event.cancelled': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      cancelledBy: z.string(),
+      reason: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      cancelledBy: string;
+      reason: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Event cancelled: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\nYour event "${d.eventTitle}" was cancelled by ${d.cancelledBy}.\nReason: ${d.reason}\n\nDetails: ${d.url}\n`,
     }),
   },
 } as const;

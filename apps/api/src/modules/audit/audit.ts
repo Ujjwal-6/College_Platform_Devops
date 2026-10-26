@@ -12,6 +12,20 @@ export const AUDIT_ACTIONS = [
   'user.deactivated',
   'user.activated',
   'department.created',
+  'calendar.entry_created',
+  'calendar.entry_updated',
+  'calendar.entry_deleted',
+  'event.created',
+  'event.updated',
+  'event.submitted',
+  'event.withdrawn',
+  'event.approval_granted',
+  'event.approval_rejected',
+  'event.published',
+  'event.unpublished',
+  'event.revised',
+  'event.cancelled',
+  'event.closed',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

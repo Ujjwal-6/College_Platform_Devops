@@ -123,3 +123,30 @@ export async function departmentExists(db: Executor, id: string): Promise<boolea
   const { rows } = await db.query('SELECT 1 FROM departments WHERE id = $1', [id]);
   return rows.length > 0;
 }
+
+export interface UserContact {
+  id: string;
+  email: string;
+  name: string;
+}
+
+/** Active users holding a role, optionally limited to one department. Used to find approvers. */
+export async function listActiveByRole(
+  db: Executor,
+  role: Role,
+  departmentId: string | null,
+): Promise<UserContact[]> {
+  const { rows } = await db.query(
+    `SELECT u.id, u.email, u.name FROM users u JOIN user_roles r ON r.user_id = u.id
+      WHERE r.role = $1 AND u.is_active AND ($2::uuid IS NULL OR u.department_id = $2)
+      ORDER BY u.name, u.id`,
+    [role, departmentId],
+  );
+  return rows as UserContact[];
+}
+
+export async function getNames(db: Executor, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const { rows } = await db.query('SELECT id, name FROM users WHERE id = ANY($1::uuid[])', [ids]);
+  return new Map(rows.map((r) => [r.id as string, r.name as string]));
+}

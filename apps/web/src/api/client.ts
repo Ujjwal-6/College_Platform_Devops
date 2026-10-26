@@ -1,11 +1,16 @@
 import type { User } from './types';
 
+export interface FieldIssue {
+  path: string;
+  message: string;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
     message: string,
-    readonly details?: { path: string; message: string }[],
+    readonly details?: unknown,
   ) {
     super(message);
   }
@@ -16,6 +21,11 @@ export class ApiError extends Error {
 let accessToken: string | null = null;
 let onSessionLost: (() => void) | null = null;
 let refreshInFlight: Promise<User | null> | null = null;
+
+/** Field-level validation messages from the API's error format (empty when the error carries none). */
+export function fieldIssues(err: unknown): FieldIssue[] {
+  return err instanceof ApiError && Array.isArray(err.details) ? (err.details as FieldIssue[]) : [];
+}
 
 export const setAccessToken = (token: string | null) => {
   accessToken = token;
