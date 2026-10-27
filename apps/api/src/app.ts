@@ -8,10 +8,14 @@ import type { AppContext } from './context.js';
 import { createErrorHandler, notFoundHandler } from './platform/errors.js';
 import { approvalRoutes } from './modules/approvals/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { bookingRoutes } from './modules/bookings/routes.js';
+import { registerBookingHooks } from './modules/bookings/hooks.js';
 import { calendarRoutes } from './modules/calendar/routes.js';
 import { departmentRoutes } from './modules/departments/routes.js';
 import { eventRoutes } from './modules/events/routes.js';
+import { hallRoutes } from './modules/halls/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
+import { reservationRoutes, resourceRoutes } from './modules/resources/routes.js';
 import { userRoutes } from './modules/users/routes.js';
 
 export function createApp(ctx: AppContext): Express {
@@ -58,6 +62,13 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api/calendar', calendarRoutes(ctx));
   app.use('/api/events', eventRoutes(ctx));
   app.use('/api/events', approvalRoutes(ctx));
+  app.use('/api/halls', hallRoutes(ctx));
+  app.use('/api/bookings', bookingRoutes(ctx));
+  app.use('/api/resources', resourceRoutes(ctx));
+  app.use('/api/resource-reservations', reservationRoutes(ctx));
+
+  // Connect other features to the event lifecycle (one line per feature; see docs/event-contract.md).
+  registerBookingHooks(ctx);
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));

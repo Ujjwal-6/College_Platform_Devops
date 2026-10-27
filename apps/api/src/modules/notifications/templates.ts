@@ -88,6 +88,87 @@ const templates = {
       text: `Hello ${d.name},\n\nYour event "${d.eventTitle}" was cancelled by ${d.cancelledBy}.\nReason: ${d.reason}\n\nDetails: ${d.url}\n`,
     }),
   },
+  'booking.approval_requested': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      hallName: z.string(),
+      when: z.string(),
+      level: z.enum(['faculty', 'hod_admin']),
+      requesterName: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      hallName: string;
+      when: string;
+      level: string;
+      requesterName: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Hall booking approval needed: ${d.hallName} for ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\n${d.requesterName} asked to book ${d.hallName} for "${d.eventTitle}" (${d.when}). It is waiting for your ${d.level === 'faculty' ? 'faculty' : 'HOD / admin'} approval.\nReview it at ${d.url}\n`,
+    }),
+  },
+  'booking.decision': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      hallName: z.string(),
+      when: z.string(),
+      decision: z.enum(['approved', 'confirmed', 'rejected']),
+      approverName: z.string(),
+      comment: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      hallName: string;
+      when: string;
+      decision: string;
+      approverName: string;
+      comment: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => {
+      const outcome =
+        d.decision === 'confirmed'
+          ? `is confirmed (final approval by ${d.approverName}).`
+          : d.decision === 'approved'
+            ? `was approved by ${d.approverName} and moves to the next step.`
+            : `was rejected by ${d.approverName}. The hall is free again; you can request another slot.`;
+      return {
+        subject: oneLine(
+          `${d.decision === 'rejected' ? 'Hall booking rejected' : d.decision === 'confirmed' ? 'Hall booking confirmed' : 'Hall booking update'}: ${d.hallName}`,
+        ),
+        text: `Hello ${d.name},\n\nYour booking of ${d.hallName} for "${d.eventTitle}" (${d.when}) ${outcome}\n${d.comment ? `\nComment: ${d.comment}\n` : ''}\nDetails: ${d.url}\n`,
+      };
+    },
+  },
+  'booking.cancelled': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      hallName: z.string(),
+      when: z.string(),
+      cancelledBy: z.string(),
+      reason: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      hallName: string;
+      when: string;
+      cancelledBy: string;
+      reason: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Hall booking cancelled: ${d.hallName}`),
+      text: `Hello ${d.name},\n\nYour booking of ${d.hallName} for "${d.eventTitle}" (${d.when}) was cancelled by ${d.cancelledBy}.\n${d.reason ? `Reason: ${d.reason}\n` : ''}\nDetails: ${d.url}\n`,
+    }),
+  },
 } as const;
 
 export type NotificationType = keyof typeof templates;

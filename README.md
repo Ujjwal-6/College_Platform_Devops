@@ -66,29 +66,32 @@ All configuration is read from environment variables and validated at startup (`
 ```
 apps/api/        Express API, job worker, migrations, tests
   src/modules/     auth, users, departments, audit, notifications, health,
-                   events, approvals, calendar (event lifecycle + academic calendar guard)
+                   events, approvals, calendar (event lifecycle + advisory academic calendar),
+                   halls, bookings, resources (hall booking, equipment reservations)
   src/platform/    db/transactions, errors, validation, logging, jobs, mailer, storage
   migrations/      versioned SQL migrations (node-pg-migrate)
-apps/web/        React app (login, users, events, approvals, academic calendar)
+apps/web/        React app (login, users, events, approvals, calendar, halls, bookings, resources)
 infra/postgres/  database bootstrap for Docker
 docs/            requirements, architecture, decisions, roadmap, testing, status
 ```
 
 ## Building blocks for feature developers
 
-| Need                               | Use                                                                                                                                   |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Protect a route                    | `requireAuth(ctx)` then `requireRole(...)`; department scope via `assertDepartmentScope`                                              |
-| Validate input                     | `parse(zodStrictSchema, req.body)` (unknown fields are rejected)                                                                      |
-| Return errors                      | throw `errors.*` / `AppError`; one JSON error format with `code` and `requestId`                                                      |
-| Multi-step change                  | `withTx(pool, async (tx) => { ... })`; pass `tx` to every repository call                                                             |
-| Audit a change                     | `recordAudit(tx, { actorId, action, targetType, targetId, ... })` in the same transaction                                             |
-| Run work in the background         | `enqueue(tx, { type, payload, key })` and `worker.register(type, handler)` in `src/worker.ts`                                         |
-| Send an email                      | add a template in `modules/notifications/templates.ts`, call `notify(tx, {...})`                                                      |
-| Store a PDF or image               | `ctx.storage.put({ data, allowed, maxBytes })`, serve with `sendStoredFile`                                                           |
-| React to event changes             | `registerEventHook(async (tx, { event, action }) => ...)` from `modules/events/index.ts` (runs in the action's transaction, may veto) |
-| Check academic dates               | `checkRange(db, ctx.config.APP_TIMEZONE, { startAt, endAt, departmentId })` → `{ blocks, warnings }`                                  |
-| Is an event open for registration? | `isEligibleForRegistration(event)`; the full event contract is in `docs/event-contract.md`                                            |
+| Need                                 | Use                                                                                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Protect a route                      | `requireAuth(ctx)` then `requireRole(...)`; department scope via `assertDepartmentScope`                                              |
+| Validate input                       | `parse(zodStrictSchema, req.body)` (unknown fields are rejected)                                                                      |
+| Return errors                        | throw `errors.*` / `AppError`; one JSON error format with `code` and `requestId`                                                      |
+| Multi-step change                    | `withTx(pool, async (tx) => { ... })`; pass `tx` to every repository call                                                             |
+| Audit a change                       | `recordAudit(tx, { actorId, action, targetType, targetId, ... })` in the same transaction                                             |
+| Run work in the background           | `enqueue(tx, { type, payload, key })` and `worker.register(type, handler)` in `src/worker.ts`                                         |
+| Send an email                        | add a template in `modules/notifications/templates.ts`, call `notify(tx, {...})`                                                      |
+| Store a PDF or image                 | `ctx.storage.put({ data, allowed, maxBytes })`, serve with `sendStoredFile`                                                           |
+| React to event changes               | `registerEventHook(async (tx, { event, action }) => ...)` from `modules/events/index.ts` (runs in the action's transaction, may veto) |
+| Check academic dates                 | `checkRange(db, ctx.config.APP_TIMEZONE, { startAt, endAt, departmentId })` → `{ blocks, warnings }`                                  |
+| Book a hall / reserve equipment      | `POST /api/bookings`, `POST /api/resource-reservations`; the no-overlap rule is a database constraint (`docs/booking-design.md`)      |
+| Retry a transaction after a deadlock | `retryTx(() => withTx(...))` from `platform/db.js` (only for work that is safe to repeat)                                             |
+| Is an event open for registration?   | `isEligibleForRegistration(event)`; the full event contract is in `docs/event-contract.md`                                            |
 
 ## Security notes
 

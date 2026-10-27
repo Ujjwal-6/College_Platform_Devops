@@ -59,7 +59,7 @@ There is no stored `rejected` state: a rejected event is a `draft` whose `last_r
 
 An event does not need a booking to be approved or published.
 
-**Proposal for Member 2** (not implemented): allow booking requests while the event is `draft`, `pending_approval`, `approved` or `published`; keep a booking `pending` until the event reaches `approved` (matches requirement FR-6.4's "final approval confirms the pending booking"); release it on `cancelled`, `closed` and on `revise` (the event goes back to draft and must be re-approved). Implement these as hooks (section 7).
+**Implemented by Member 2** (`docs/booking-design.md`): a booking can be requested while the event is `draft`, `pending_approval`, `approved` or `published`, and before it starts. A booking has **its own two-step approval** (faculty, then HOD or admin) and is confirmed by that, independently of the event's approval. When the event is cancelled its bookings are cancelled; when it is revised (back to draft) bookings stay, and resource reservations are released.
 
 ## 5. Registration eligibility (for Member 3)
 
@@ -98,13 +98,13 @@ registerEventHook(async (tx, { event, previousStatus, action, actorId }) => {
 - Registration point: call your `registerXHooks()` from `createApp` in `apps/api/src/app.ts` (a new line per feature). Hooks do not run in the worker process.
 - Tests: `registerEventHook` returns an unregister function.
 
-## 8. Academic calendar guard
+## 8. Academic calendar (advisory)
 
-- Table `calendar_entries` (migration `012`): `type`, `title`, inclusive `start_date`/`end_date` (local dates), `severity` (`block` | `warn`), optional `department_id` (null = all), `is_active`.
-- Function `checkRange(db, timezone, { startAt, endAt, departmentId })` → `{ blocks, warnings }`. Pass the transaction client when the result must be consistent with a write.
-- Where it is applied today: **event submission** (blocks refuse with 422 `CALENDAR_BLOCKED`; warnings are stored on the event as `calendar_warnings` and shown to approvers). Drafts can be saved on restricted dates, and the detail view shows the live result.
-- **Member 2:** call `checkRange` when a booking is requested, in the same transaction as the insert (acceptance test AT-20.10 is yours: parallel booking requests on a blocked date must all fail). Add a hall scope with a new nullable column in your own migration range; the function signature can take an optional `hallId` then.
-- No override exists for `block` entries. Changing the calendar never changes existing events; the admin gets a conflict list (`GET /api/calendar/entries/:id/conflicts`, also returned when creating or editing an entry).
+- Table `calendar_entries` (migration `012`): `type`, `title`, inclusive `start_date`/`end_date` (local dates), `severity` (`block` = *restricted period*, `warn` = *notice*), optional `department_id` (null = all), `is_active`.
+- Function `checkRange(db, timezone, { startAt, endAt, departmentId })` → `{ blocks, warnings }`. **Both lists are suggestions.** Nothing in the platform refuses an action because of the calendar (decision of 2026-10-23, supersedes the earlier hard block).
+- **Events:** on submission every overlapping entry is stored on the event (`calendar_warnings`, each with its `severity`) and shown to approvers. Drafts show the live result to the owner.
+- **Hall bookings:** overlaps are returned as `CALENDAR` warnings that the organizer acknowledges ("Book anyway"); they are stored on the booking for the approvers.
+- Changing the calendar never changes existing events or bookings; the admin gets a list of overlapping events (`GET /api/calendar/entries/:id/conflicts`, also returned when creating or editing an entry).
 
 ## 9. API summary
 
@@ -132,7 +132,7 @@ registerEventHook(async (tx, { event, previousStatus, action, actorId }) => {
 
 ## 11. Migration ranges
 
-Used: `010_events`, `011_event_approvals`, `012_calendar`. Member 1 reserves `010–019`. Proposed (D-16): Member 2 `020–029`, Member 3 `030–039`. The migration runner refuses a file that sorts before one already applied locally, so after pulling a lower-numbered migration, rebuild your local database (`npm run migrate -- down <n>` then `npm run migrate`).
+Used: `010_events`, `011_event_approvals`, `012_calendar` (Member 1); `020_halls_resources`, `021_hall_bookings`, `022_resource_reservations` (Member 2). Member 1 reserves `010–019`. Proposed (D-16): Member 2 `020–029`, Member 3 `030–039`. The migration runner refuses a file that sorts before one already applied locally, so after pulling a lower-numbered migration, rebuild your local database (`npm run migrate -- down <n>` then `npm run migrate`).
 
 ## 12. Test helpers you can reuse
 

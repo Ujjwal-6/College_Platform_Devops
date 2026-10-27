@@ -241,8 +241,12 @@ describe('date matching (the guard)', () => {
   });
 });
 
-describe('academic calendar guard on events', () => {
-  it('lets drafts be created and edited on restricted dates, but shows the problem to the owner', async () => {
+describe('academic calendar on events (advisory: it suggests, it never refuses)', () => {
+  const snapshot = async (id: string) =>
+    (await t.ctx.pool.query('SELECT calendar_warnings FROM events WHERE id = $1', [id])).rows[0]
+      .calendar_warnings as { title: string; severity: string; type: string }[];
+
+  it('lets drafts be created and edited on restricted dates, and shows the owner the live suggestion', async () => {
     await addEntry({ startDate: D, endDate: D });
     const id = await createDraft(t, org.organizer, range(ist(D, '10:00'), ist(D, '12:00')));
     const detail = (await as(t, org.organizer).get(`/api/events/${id}`)).body.data;
@@ -253,95 +257,83 @@ describe('academic calendar guard on events', () => {
     ).toBe(200);
   });
 
-  it('refuses submission on blocked dates with 422 and changes nothing (AT-20.1)', async () => {
+  it('accepts submission on restricted dates and carries the entry to the approvers (AT-20.1)', async () => {
     await addEntry({ startDate: shift(D, -1), endDate: shift(D, 1) });
-    const { id, res } = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
-    expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('CALENDAR_BLOCKED');
-    expect(res.body.error.details.entries[0]).toMatchObject({
-      title: 'End-semester exams',
-      severity: 'block',
-    });
-    const row = (
-      await t.ctx.pool.query('SELECT status, submission_round FROM events WHERE id = $1', [id])
-    ).rows[0];
-    expect(row).toEqual({ status: 'draft', submission_round: 0 });
-    expect((await t.ctx.pool.query("SELECT 1 FROM jobs WHERE type = 'email.send'")).rowCount).toBe(
-      0,
-    );
-    expect(
-      (await t.ctx.pool.query("SELECT 1 FROM audit_log WHERE action = 'event.submitted'")).rowCount,
-    ).toBe(0);
-  });
-
-  it('accepts submission on warning dates and carries the warning to the approvers (AT-20.2)', async () => {
-    await addEntry({ type: 'major_fest', title: 'Annual Fest', startDate: D, endDate: D });
     const { id, res } = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe('pending_approval');
+    expect(await snapshot(id)).toMatchObject([
+      { title: 'End-semester exams', type: 'exam_period', severity: 'block' },
+    ]);
     const forApprover = (await as(t, org.faculty).get(`/api/events/${id}`)).body.data;
     expect(forApprover.calendarWarnings).toMatchObject([
-      { title: 'Annual Fest', type: 'major_fest', startDate: D },
+      { title: 'End-semester exams', severity: 'block' },
     ]);
-    expect(forApprover.calendar.warnings).toHaveLength(1);
-    // people who cannot see the workflow do not see calendar internals
+  });
+
+  it('accepts submission on notice dates and records them too (AT-20.2)', async () => {
+    await addEntry({ type: 'major_fest', title: 'Annual Fest', startDate: D, endDate: D });
+    const { id, res } = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
+    expect(res.status).toBe(200);
+    expect(await snapshot(id)).toMatchObject([{ title: 'Annual Fest', severity: 'warn' }]);
     await approveFully(t, id, { faculty: org.faculty, hod: org.hod, admin: org.admin });
     await as(t, org.organizer).post(`/api/events/${id}/publish`);
     const publicView = (await as(t, org.student).get(`/api/events/${id}`)).body.data;
-    expect(publicView.calendar).toBeNull();
+    expect(publicView.calendar).toBeNull(); // calendar internals stay with the owner, admins and department staff
     expect(publicView.calendarWarnings).toEqual([]);
   });
 
-  it('reports every blocking entry and blocks even when a warning also applies (AT-20.3)', async () => {
+  it('records every overlapping entry, restricted and notice alike (AT-20.3)', async () => {
     await addEntry({ title: 'Exams A', startDate: D, endDate: D });
     await addEntry({ type: 'holiday', title: 'Holiday B', startDate: D, endDate: D });
     await addEntry({ type: 'major_fest', title: 'Fest C', startDate: D, endDate: D });
-    const { res } = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
-    expect(res.status).toBe(422);
-    expect(res.body.error.details.entries.map((e: { title: string }) => e.title).sort()).toEqual([
+    const { id, res } = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
+    expect(res.status).toBe(200);
+    expect((await snapshot(id)).map((e) => e.title).sort()).toEqual([
       'Exams A',
+      'Fest C',
       'Holiday B',
     ]);
   });
 
-  it('accepts an event that ends exactly when a blocked period starts (AT-20.4)', async () => {
+  it('records nothing when an event ends exactly when a restricted period starts (AT-20.4)', async () => {
     await addEntry({ startDate: D, endDate: D });
-    const { res } = await submitOn(ist(shift(D, -1), '22:00'), ist(D, '00:00'));
+    const { id, res } = await submitOn(ist(shift(D, -1), '22:00'), ist(D, '00:00'));
     expect(res.status).toBe(200);
+    expect(await snapshot(id)).toEqual([]);
   });
 
-  it('does not block a department the entry is not scoped to (AT-20.5)', async () => {
+  it('applies department scope to what is recorded (AT-20.5)', async () => {
     await addEntry({ title: 'ECE exams', departmentId: org.ece });
-    expect((await submitOn(ist(D, '10:00'), ist(D, '12:00'), org.organizer)).res.status).toBe(200);
-    expect((await submitOn(ist(D, '10:00'), ist(D, '12:00'), org.otherOrganizer)).res.status).toBe(
-      422,
-    );
+    const cse = await submitOn(ist(D, '10:00'), ist(D, '12:00'), org.organizer);
+    const ece = await submitOn(ist(D, '10:00'), ist(D, '12:00'), org.otherOrganizer);
+    expect(await snapshot(cse.id)).toEqual([]);
+    expect(await snapshot(ece.id)).toMatchObject([{ title: 'ECE exams' }]);
   });
 
-  it('lets the same event through once the blocking entry is deactivated or deleted (AT-20.6)', async () => {
+  it('stops mentioning an entry once it is deactivated or deleted (AT-20.6)', async () => {
     const id = (await addEntry()).body.data.id as string;
-    const { id: eventId, res } = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
-    expect(res.status).toBe(422);
     await as(t, org.admin).patch(`/api/calendar/entries/${id}`, { isActive: false });
-    expect((await as(t, org.organizer).post(`/api/events/${eventId}/submit`)).status).toBe(200);
-
+    const first = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
+    expect(await snapshot(first.id)).toEqual([]);
     await as(t, org.admin).patch(`/api/calendar/entries/${id}`, { isActive: true });
     const second = await submitOn(ist(D, '13:00'), ist(D, '15:00'));
-    expect(second.res.status).toBe(422);
+    expect(await snapshot(second.id)).toHaveLength(1);
     await as(t, org.admin).delete(`/api/calendar/entries/${id}`);
-    expect((await as(t, org.organizer).post(`/api/events/${second.id}/submit`)).status).toBe(200);
+    const third = await submitOn(ist(D, '16:00'), ist(D, '17:00'));
+    expect(await snapshot(third.id)).toEqual([]);
   });
 
-  it('offers no override: nobody, not even an admin, can submit around a block', async () => {
+  it('never refuses anyone, including admins and events that overlap several entries (AT-20.7)', async () => {
     await addEntry();
     const id = await createDraft(t, org.admin, {
       departmentId: org.cse,
       ...range(ist(D, '10:00'), ist(D, '12:00')),
     });
-    expect((await as(t, org.admin).post(`/api/events/${id}/submit`)).status).toBe(422);
+    expect((await as(t, org.admin).post(`/api/events/${id}/submit`)).status).toBe(200);
   });
 
-  it('leaves existing events untouched when a block is added later, and reports them to the admin (AT-20.8)', async () => {
+  it('leaves existing events untouched when an entry is added later, and reports them to the admin (AT-20.8)', async () => {
     const { id } = await submitOn(ist(D, '10:00'), ist(D, '12:00'));
     const published = await submitOn(ist(D, '14:00'), ist(D, '16:00'));
     await approveFully(t, published.id, { faculty: org.faculty, hod: org.hod, admin: org.admin });

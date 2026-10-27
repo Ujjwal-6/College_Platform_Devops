@@ -199,3 +199,43 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+.badge-b-confirmed {
+  background: #d9efd9;
+}
+.badge-b-pending {
+  background: #fff0c2;
+}
+.badge-b-rejected,
+.badge-b-cancelled {
+  background: #f6d5d5;
+}
+.free {
+  color: #1b6e2d;
+  font-weight: 600;
+}
+.taken {
+  color: #a02020;
+  font-weight: 600;
+}
+.flag {
+  color: #8a5a00;
+}
+.warnbox {
+  background: #fff6dd;
+  border: 1px solid #f0d98a;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+}
+.warnbox ul {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.2rem;
+}
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: end;
+}
+.inline-form label {
+  min-width: 9rem;
+}

@@ -9,8 +9,9 @@ Shared foundation implemented (see `docs/feature-status.md` for evidence): npm-w
 (`apps/api`, `apps/web`), config/secrets handling, PostgreSQL migrations, auth with refresh rotation,
 server-side RBAC, audit log, DB-backed job queue + worker, notification and file-storage building
 blocks, Docker/Compose/CI definitions, and Event Management & Approvals (events, Faculty → HOD → Admin
-approvals, academic calendar guard; contract in `docs/event-contract.md`). Bookings, registration,
-attendance, certificates and reports are not built yet.
+approvals, academic calendar guard; contract in `docs/event-contract.md`). Registration,
+attendance, certificates and reports are not built yet. Hall booking and resource management are built
+(`docs/booking-design.md`).
 Inspect the tree before assuming anything exists. Update this section as it changes.
 
 ## Decision status
@@ -123,6 +124,8 @@ Run from the repository root (details and first-time setup: `README.md`).
 - Errors: throw `errors.*` / `AppError`; never return ad-hoc error bodies. Do not log secrets or put them in audit metadata.
 - New background work: register a handler in `src/worker.ts`; enqueue with a stable `key` inside the business transaction.
 - Shared registries every feature extends (keep additions small to avoid merge conflicts): `AUDIT_ACTIONS` (`modules/audit/audit.ts`), notification `templates` (`modules/notifications/templates.ts`), route registration (`src/app.ts`), `resetDb` table list (`test/helpers.ts`), web routes (`apps/web/src/App.tsx`).
+- Hall bookings are protected by a PostgreSQL exclusion constraint; never replace it with an application-only check. Work that holds a transaction must use that transaction's connection, never `ctx.pool` (it can starve the pool). Wrap transactions that may deadlock in `retryTx`.
+- The academic calendar is advisory: it informs, it never refuses.
 - Other features talk to events through `modules/events/index.ts` (types, `isEligibleForRegistration`, `registerEventHook`, `checkRange`), never by querying the events tables.
 - Migrations: new files only, never edit a committed one. Number ranges per owner (see `docs/decisions.md` D-16); the runner rejects a file that sorts before an applied one.
 - Meaningful error types mapped to consistent HTTP responses; no leaking stack traces to clients.

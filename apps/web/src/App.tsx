@@ -2,11 +2,16 @@ import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { AdminUsers } from './pages/AdminUsers';
+import { BookingDetailPage } from './pages/BookingDetail';
+import { BookingForm } from './pages/BookingForm';
+import { Bookings } from './pages/Bookings';
 import { Calendar } from './pages/Calendar';
 import { Dashboard } from './pages/Dashboard';
 import { EventDetailPage } from './pages/EventDetail';
 import { EventForm } from './pages/EventForm';
 import { Events } from './pages/Events';
+import { Halls } from './pages/Halls';
+import { Resources } from './pages/Resources';
 import { Login } from './pages/Login';
 
 export function App() {
@@ -19,6 +24,11 @@ export function App() {
             <Link to="/">Dashboard</Link>
             <Link to="/events">Events</Link>
             {hasRole('faculty', 'hod', 'admin') && <Link to="/approvals">Approvals</Link>}
+            <Link to="/halls">Halls</Link>
+            <Link to="/resources">Resources</Link>
+            {hasRole('organizer', 'faculty', 'hod', 'admin') && (
+              <Link to="/bookings">Bookings</Link>
+            )}
             <Link to="/calendar">Calendar</Link>
             {hasRole('admin', 'hod') && <Link to="/users">Users</Link>}
           </nav>
@@ -90,6 +100,54 @@ export function App() {
           element={
             <ProtectedRoute>
               <Calendar />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/halls"
+          element={
+            <ProtectedRoute>
+              <Halls />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/resources"
+          element={
+            <ProtectedRoute>
+              <Resources />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings"
+          element={
+            <ProtectedRoute roles={['organizer', 'faculty', 'hod', 'admin']}>
+              <Bookings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/:id"
+          element={
+            <ProtectedRoute roles={['organizer', 'faculty', 'hod', 'admin']}>
+              <BookingDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/:id/edit"
+          element={
+            <ProtectedRoute roles={['organizer', 'admin']}>
+              <BookingForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:eventId/book"
+          element={
+            <ProtectedRoute roles={['organizer', 'admin']}>
+              <BookingForm />
             </ProtectedRoute>
           }
         />

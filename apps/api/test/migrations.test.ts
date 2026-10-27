@@ -61,9 +61,25 @@ describe('migration history', () => {
         'event_approvals',
         'event_history',
         'calendar_entries',
+        'halls',
+        'resources',
+        'hall_bookings',
+        'booking_approvals',
+        'booking_history',
+        'resource_reservations',
       ]) {
         expect(upTables).toContain(table);
       }
+
+      const check = new pg.Client({ connectionString: scratch });
+      await check.connect();
+      const constraint = await check.query(
+        "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'hall_bookings_no_overlap'",
+      );
+      await check.end();
+      expect(constraint.rows[0]?.def).toMatch(
+        /EXCLUDE USING gist \(hall_id WITH =, tstzrange\(start_at, end_at, '\[\)'::text\) WITH &&\) WHERE/,
+      );
 
       await runMigrations(scratch, 'down', files.length);
       expect(await tables(scratch)).toEqual(['pgmigrations']);

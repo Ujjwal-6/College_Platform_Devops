@@ -83,15 +83,15 @@ Decide by available student credits and team familiarity. R1 is cloud-agnostic (
 |---|---|---|---|
 | U-1 | How do users join? | **Approved (2026-10-23): accounts are admin-created only in the initial release. No public self-registration.** | feature 1 |
 | U-2 | Can approvers delegate or have substitutes? | Not in R1 | feature 6 |
-| U-3 | Calendar defaults and override | **Resolved 2026-10-23 (engineer recommendation accepted):** exam periods and holidays block, major fests, academic dates and other entries warn; each entry can override its own severity; **no override of a block**; the guard applies on event **submission** (drafts save with a visible warning); calendar changes never alter existing events (admin conflict list instead) | feature 20, bookings |
+| U-3 | Calendar defaults and override | **Revised 2026-10-23 (hall booking feature): the calendar is advisory everywhere.** It suggests ("this overlaps an exam period / a fest") on events and hall bookings, shows entries to approvers, and **never refuses anything**. Severity still distinguishes `block` ("restricted", shown more strongly) from `warn` ("notice"). Earlier rule (hard block at event submission) is withdrawn | feature 20, events, bookings |
 | U-4 | Is the chain always Faculty → HOD → Admin, or does it vary? | **Resolved 2026-10-23: always all three levels, strictly in order** | feature 6 |
 | U-5 | After rejection, can the organizer edit and resubmit? Edits after approval? | **Resolved 2026-10-23:** rejection at any level returns the event to draft (no stored `rejected` state) with the comment shown; resubmission starts a new round at Faculty. Material edits after approval need an explicit `revise` (back to draft); small corrections apply in place | features 2, 6 |
 | U-6 | Certificate eligibility: attendance only, or attendance + feedback? Winner/participant types? | Checked-in attendees get a participation certificate | feature 8 |
 | U-7 | Report template, content fields, photo limits, reopening rule | Simple internal layout; JPEG/PNG ≤ 5 MB each, ≤ 20 photos; no reopening, regeneration is a separate versioned action | feature 19 |
 | U-8 | Who may check people in at the gate (volunteers as a role, or organizer only)? | Organizer plus volunteers they assign | feature 7 |
 | U-9 | Invitation codes: single-use or reusable until the team is full? | Reusable until the team is full or the code expires | feature 3 |
-| U-10 | Hall capacity smaller than expected attendance: warn or block? | Warn | feature 4 |
-| U-11 | Buffer time between bookings | 0 minutes | feature 4 |
+| U-10 | Hall capacity smaller than expected attendance | **Resolved 2026-10-23:** a warning the organizer must acknowledge ("Book anyway"); never a hard block. Same for missing facilities | feature 4 |
+| U-11 | Buffer time between bookings | **Resolved:** none (0 minutes). Bookings may be back to back | feature 4 |
 | U-12 | Feedback fields and anonymity | 1–5 rating, optional comment, tied to user but hidden from organizers | feature 8 |
 | U-13 | Expected scale (users, concurrent events, attendees per event) | Hundreds of concurrent users, ≤ 2,000 attendees per event | load testing, sizing |
 | U-14 | Data retention and privacy (how long to keep student data, audit logs, reports) | Keep for the academic year plus one; no deletion feature in R1 | all |
@@ -145,3 +145,18 @@ Kubernetes · microservices · predictive/ML risk scoring · multi-region DR · 
 | C-1 | The event contract is written: `docs/event-contract.md` | Done |
 
 Edited-in-place note: migration `011_event_approvals.sql` was corrected before it was ever committed or shared (a CHECK constraint let a rejection with a `NULL` comment through); only local databases had applied it and they were rebuilt. Migrations that are committed must never be edited this way.
+
+## 9. Hall Booking & Resource Management: decisions made (2026-10-23)
+
+| ID | Decision | Status |
+|---|---|---|
+| H-1 | **Separate booking approval:** Faculty of the event's department, then the HOD of that department or any admin (either one). Same safeguards as event approvals: the requester and the event's organizer cannot approve; one person cannot decide both steps; stale/duplicate/concurrent decisions are refused. Booking approval and event approval are independent | Approved (option A1) |
+| H-2 | **Calendar is advisory** (see U-3). Event submission no longer refuses restricted dates; this changed Member 1's behaviour, tests and docs | Approved (option B) |
+| H-3 | Capacity and facility mismatches, calendar overlaps and "does not cover the event time" are **warnings the organizer acknowledges**; a taken slot or an inactive hall is a hard refusal | Approved ("it is up to the organizer") |
+| H-4 | Bookings and their approval happen **before the event starts**; allowed for events in draft, submitted, approved or published; not for cancelled or closed events | Approved ("done before the event time") |
+| H-5 | **Resources** can be reserved only for events that are fully approved (`approved` or `published`) and have not started; reserved immediately, no further approval. Released automatically when the event is cancelled or sent back to draft | Approved ("registered and completed that is approved") |
+| H-6 | Everyone signed in can see what is booked when; other people's draft event titles show as "Reserved" | Approved |
+| H-7 | Retries: **natural idempotency**: an identical repeated request returns the existing booking/reservation. No generic `Idempotency-Key` header was built | Delegated to the engineer ("do what you like") |
+| H-8 | Concurrency: hall bookings use a PostgreSQL **exclusion constraint** (`btree_gist`); resources use a **row lock plus peak-usage check**; deadlock victims are retried. See `docs/booking-design.md` | Engineer's decision, documented |
+| H-9 | Migration numbers used by Member 2: `020_halls_resources`, `021_hall_bookings`, `022_resource_reservations` (range `020–029`, as agreed in D-16) | Done |
+| H-10 | Hall administration is admin-only; no new role. No hall closure windows (the calendar is advisory, so an inactive hall is the only hard block) | Engineer's decision, documented |

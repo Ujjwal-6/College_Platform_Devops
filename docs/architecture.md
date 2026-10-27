@@ -96,16 +96,17 @@ Proposed developer areas (can be reassigned; see roadmap):
 
 ## 6. Key request flows
 
-### 6.1 Booking a hall (concurrency-critical)
-1. `POST /api/bookings` with `Idempotency-Key`; auth + scope check (organizer owns the event).
-2. Validate input schema.
-3. Start transaction.
-4. `calendar.checkRange` → if any `block` → rollback, 422 with entries. Warnings are collected.
-5. Insert booking (`pending`). The database constraint rejects an overlapping active booking for the same hall → map to 409.
-6. Insert audit record; store idempotency record; commit.
-7. Respond 201 with booking + warnings; or 409/422.
+### 6.1 Booking a hall (concurrency-critical) — as built
+1. `POST /api/bookings`; auth, then the service checks the caller is the event's organizer or an admin and that the event is bookable and has not started.
+2. Validate input (strict schema, times in the future, `end > start`).
+3. Start a transaction; lock the hall row `FOR SHARE` (so it cannot be deactivated mid-booking); a retry of an identical request returns the existing booking.
+4. Early "already booked?" query (a hint for a clear message only), then warnings: capacity, facilities, `calendar.checkRange` (advisory), event-time coverage. Warnings need `acknowledgeWarnings: true`; otherwise 409 and nothing is written.
+5. Check that approvers exist (faculty, and an HOD or admin, none of them the requester or organizer).
+6. Insert the booking as `pending`. **The exclusion constraint is the guarantee:** an overlapping active booking of the same hall fails with `23P01`, mapped to 409 `HALL_UNAVAILABLE`.
+7. Insert history and audit rows, queue approval emails (same transaction), commit. A deadlock victim (`40P01`) is re-run up to 5 times.
+8. Respond 201 with the booking, or 200 with the existing one for an identical retry.
 
-Pre-check endpoint (`GET /availability`) is for UX only and is never trusted.
+The availability endpoint is for UX only and is never trusted. Full design: `docs/booking-design.md`.
 
 ### 6.2 Registration with capacity
 1. `POST /api/events/:id/registrations` with idempotency key.
@@ -190,3 +191,7 @@ Backups: scheduled DB dump plus file-storage backup, with one tested restore bef
 ## 13. Event contract (as built)
 
 The events, approvals and calendar modules are implemented. Their shared contract for the booking and registration features (identifiers, time zones, lifecycle, hooks, calendar guard, migration ranges) is in `docs/event-contract.md`. Module notes: `modules/events` owns events/speakers/history and the lifecycle; `modules/approvals` owns decisions and the approver rules and depends on events; `modules/calendar` owns academic calendar entries and the `checkRange` guard. Other modules use `modules/events/index.ts` as the public interface.
+
+## 14. Hall booking and resources (as built)
+
+`modules/halls` owns halls; `modules/resources` owns resources and reservations; `modules/bookings` owns hall bookings, their two-step approval and the event hooks. They reach events only through `modules/events/index.ts` and the calendar through `checkRange`. Design, concurrency strategy and limits: `docs/booking-design.md`.
