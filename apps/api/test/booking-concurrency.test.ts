@@ -13,7 +13,7 @@ import {
 
 // These tests run real simultaneous HTTP requests against the real PostgreSQL test database.
 // They are the proof that the hall-booking guarantee holds under concurrency.
-vi.setConfig({ testTimeout: 90_000, hookTimeout: 60_000});
+vi.setConfig({ testTimeout: 90_000, hookTimeout: 60_000 });
 const t = buildTestApp();
 let org: Org;
 let hall: string;
