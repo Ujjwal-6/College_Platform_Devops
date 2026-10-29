@@ -101,6 +101,25 @@ export async function api<T = unknown>(
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
+/** Downloads a file the API protects (it needs the access token, so a plain link cannot be used). */
+export async function downloadFile(path: string, filename: string, retry = true): Promise<void> {
+  const res = await fetch(`/api${path}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    credentials: 'include',
+  });
+  if (res.status === 401 && retry) {
+    if (await refreshSession()) return downloadFile(path, filename, false);
+    onSessionLost?.();
+  }
+  if (!res.ok) throw await parseError(res);
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function login(email: string, password: string): Promise<User> {
   const body = await api<SessionResponse>(
     '/auth/login',
