@@ -30,7 +30,7 @@ const rowsOf = (ev: string) => q('SELECT * FROM attendance WHERE event_id = $1',
 /** Moves a published event into its check-in window: it starts in half an hour. */
 const openWindow = (ev: string) =>
   q(
-    "UPDATE events SET start_at = now() + interval '30 minutes', end_at = now() + interval '3 hours' WHERE id = $1",
+    "UPDATE events SET start_at = now() + interval '10 minutes', end_at = now() + interval '3 hours' WHERE id = $1",
     [ev],
   );
 const tokenOf = async (who: LoggedIn, regId: string) =>
@@ -109,7 +109,7 @@ describe('scanning a gate pass', () => {
     );
     expect([a.status, b.status]).toEqual([201, 201]);
     expect(a.body.data.team).toBe('Gate Crashers');
-    expect(b.body.data.counts).toEqual({ registered: 2, checkedIn: 2 });
+    expect(b.body.data.counts).toEqual({ registered: 2, checkedIn: 2, inside: 2 });
   });
 
   it('works from a code the registrant fetched, end to end', async () => {
@@ -259,7 +259,7 @@ describe('who may scan (AC-7.4)', () => {
 });
 
 describe('the check-in window', () => {
-  it('is closed until two hours before the start', async () => {
+  it('is closed until 15 minutes before the start', async () => {
     const ev = await createPublishedEvent(t, org);
     const [sam] = await students(t, 1);
     const reg = await register(t, sam!, ev);
@@ -270,12 +270,12 @@ describe('the check-in window', () => {
     expect(res.body.error.details.opensAt).toBeTruthy();
 
     await q(
-      "UPDATE events SET start_at = now() + interval '3 hours', end_at = now() + interval '5 hours' WHERE id = $1",
+      "UPDATE events SET start_at = now() + interval '20 minutes', end_at = now() + interval '5 hours' WHERE id = $1",
       [ev],
     );
     expect((await scan(org.organizer, ev, token)).body.error.code).toBe('CHECK_IN_CLOSED');
     await q(
-      "UPDATE events SET start_at = now() + interval '90 minutes', end_at = now() + interval '5 hours' WHERE id = $1",
+      "UPDATE events SET start_at = now() + interval '14 minutes', end_at = now() + interval '5 hours' WHERE id = $1",
       [ev],
     );
     expect((await scan(org.organizer, ev, token)).status).toBe(201);
@@ -629,7 +629,11 @@ describe('my own pass', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body.data.token).toMatch(/^EQ1\.[\w-]+\.[\w-]+$/);
     expect(res.body.data.qrImage).toMatch(/^data:image\/png;base64,/);
-    expect(res.body.data).toMatchObject({ gatePassReady: false, checkedInAt: null });
+    expect(res.body.data).toMatchObject({
+      gatePassReady: false,
+      checkedInAt: null,
+      checkedOutAt: null,
+    });
     expect(Date.parse(res.body.data.expiresAt)).toBeGreaterThan(Date.now());
 
     expect((await as(t, other!).get(`/api/registrations/${reg.body.data.id}/qr`)).status).toBe(404);

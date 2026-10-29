@@ -31,6 +31,43 @@ export function eventAttendanceRoutes(ctx: AppContext): Router {
     res.status(201).json({ data });
   });
 
+  router.post('/:eventId/check-ins/walk-in', auth, async (req, res) => {
+    const { eventId } = parse(eventParams, req.params);
+    const body = parse(service.walkInSchema, req.body);
+    res
+      .status(201)
+      .json({ data: await service.checkInWalkIn(ctx, req.user!, eventId, body, requestMeta(req)) });
+  });
+
+  router.post('/:eventId/check-outs', auth, async (req, res) => {
+    const { eventId } = parse(eventParams, req.params);
+    const body = parse(service.scanSchema, req.body);
+    res.status(201).json({
+      data: await service.checkOutByCode(ctx, req.user!, eventId, body.token, requestMeta(req)),
+    });
+  });
+
+  router.post('/:eventId/check-outs/manual', auth, async (req, res) => {
+    const { eventId } = parse(eventParams, req.params);
+    const body = parse(service.manualSchema, req.body);
+    res.status(201).json({
+      data: await service.checkOutManually(ctx, req.user!, eventId, body, requestMeta(req)),
+    });
+  });
+
+  router.get('/:eventId/attendance-settings', auth, async (req, res) => {
+    const { eventId } = parse(eventParams, req.params);
+    res.json({ data: await service.getSettings(ctx, req.user!, eventId) });
+  });
+
+  router.put('/:eventId/attendance-settings', auth, async (req, res) => {
+    const { eventId } = parse(eventParams, req.params);
+    const body = parse(service.settingsSchema, req.body);
+    res.json({
+      data: await service.updateSettings(ctx, req.user!, eventId, body, requestMeta(req)),
+    });
+  });
+
   router.get('/:eventId/attendance', auth, async (req, res) => {
     const { eventId } = parse(eventParams, req.params);
     res.json(

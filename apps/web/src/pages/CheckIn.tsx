@@ -3,8 +3,10 @@ import { Link, useParams } from 'react-router-dom';
 import { api, ApiError, fieldIssues } from '../api/client';
 import type {
   AttendanceRow,
+  AttendanceSettings,
   AttendanceSummary,
   CheckInResult,
+  CheckOutResult,
   Volunteer,
 } from '../api/attendanceTypes';
 import type { Registrant } from '../api/registrationTypes';
@@ -16,8 +18,26 @@ import { formatDateTime } from '../lib/datetime';
 const REFRESH_MS = 5000;
 
 type Outcome = { kind: 'ok' | 'error'; text: string };
+type Mode = 'in' | 'out';
 
-/** The gate screen of one event: scan or type a pass, see who is in, and (organizer) check in by hand and manage volunteers. */
+const errorText = (err: unknown, fallback: string): string => {
+  const issues = fieldIssues(err);
+  if (issues.length) return issues.map((i) => i.message).join(' ');
+  return err instanceof ApiError ? err.message : fallback;
+};
+
+const duration = (minutes: number) =>
+  minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+
+const checkOutText = (r: CheckOutResult, how = '') =>
+  `${r.attendee.name} is checked out${how} after ${duration(r.stayedMinutes)}${
+    r.leftEarly ? '. Left early.' : '.'
+  }`;
+
+/**
+ * The gate screen of one event: scan or type a pass when people arrive and again when they leave, see who
+ * is in, and (organizer) allow walk-ins, check in or out by hand and manage volunteers.
+ */
 export function CheckIn() {
   const { id = '' } = useParams();
   const { user, hasRole } = useAuth();
@@ -29,6 +49,7 @@ export function CheckIn() {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [camera, setCamera] = useState(false);
+  const [mode, setMode] = useState<Mode>('in');
   const [typed, setTyped] = useState('');
   const working = useRef(false);
 
@@ -61,15 +82,24 @@ export function CheckIn() {
       if (working.current) return;
       working.current = true;
       try {
-        const res = await api<{ data: CheckInResult }>(`/events/${id}/check-ins`, {
-          method: 'POST',
-          body: { token: text.trim() },
-        });
-        const r = res.data;
-        setOutcome({
-          kind: 'ok',
-          text: `${r.attendee.name} is checked in${r.team ? ` (team ${r.team})` : ''}.`,
-        });
+        const body = { token: text.trim() };
+        if (mode === 'in') {
+          const res = await api<{ data: CheckInResult }>(`/events/${id}/check-ins`, {
+            method: 'POST',
+            body,
+          });
+          const r = res.data;
+          setOutcome({
+            kind: 'ok',
+            text: `${r.attendee.name} is checked in${r.team ? ` (team ${r.team})` : ''}.`,
+          });
+        } else {
+          const res = await api<{ data: CheckOutResult }>(`/events/${id}/check-outs`, {
+            method: 'POST',
+            body,
+          });
+          setOutcome({ kind: 'ok', text: checkOutText(res.data) });
+        }
       } catch (err) {
         if (err instanceof ApiError && err.code === 'ALREADY_CHECKED_IN') {
           const at = (err.details as { checkedInAt?: string } | undefined)?.checkedInAt;
@@ -77,15 +107,16 @@ export function CheckIn() {
             kind: 'error',
             text: `Already checked in${at ? ` at ${formatDateTime(at)}` : ''}.`,
           });
-        } else {
-          const issues = fieldIssues(err);
+        } else if (err instanceof ApiError && err.code === 'ALREADY_CHECKED_OUT') {
+          const at = (err.details as { checkedOutAt?: string } | undefined)?.checkedOutAt;
           setOutcome({
             kind: 'error',
-            text: issues.length
-              ? issues.map((i) => i.message).join(' ')
-              : err instanceof ApiError
-                ? err.message
-                : 'Could not check in. Please try again.',
+            text: `Already checked out${at ? ` at ${formatDateTime(at)}` : ''}.`,
+          });
+        } else {
+          setOutcome({
+            kind: 'error',
+            text: errorText(err, 'Could not record that. Please try again.'),
           });
         }
       } finally {
@@ -93,7 +124,7 @@ export function CheckIn() {
         await refresh();
       }
     },
-    [id, refresh],
+    [id, mode, refresh],
   );
 
   if (loadError) {
@@ -104,6 +135,7 @@ export function CheckIn() {
     );
   }
   const summary = overview?.summary;
+  const windowOpen = summary ? (mode === 'in' ? summary.open : summary.checkOutOpen) : true;
   return (
     <section className="card">
       <h1>Check-in{event ? `: ${event.title}` : ''}</h1>
@@ -116,18 +148,37 @@ export function CheckIn() {
           <strong>
             {summary.checkedIn} of {summary.registered} checked in
           </strong>{' '}
-          · {summary.remaining} still to come
+          · {summary.remaining} still to come · {summary.inside} inside · {summary.checkedOut} left
+          {summary.settings.requireCheckOut ? ` · ${summary.completed} stayed to the end` : ''}
         </p>
       )}
-      {summary && !summary.open && (
+      {summary && !windowOpen && (
         <p className="muted">
-          Check-in is closed right now. It is open from {formatDateTime(summary.opensAt)} until{' '}
-          {formatDateTime(summary.closesAt)}.
+          {mode === 'in'
+            ? `Check-in is closed right now. It is open from ${formatDateTime(summary.opensAt)} until ${formatDateTime(summary.closesAt)}.`
+            : `Check-out is closed right now. It is open from ${formatDateTime(summary.opensAt)} until ${formatDateTime(summary.checkOutClosesAt)}.`}
         </p>
       )}
 
+      <fieldset>
+        <legend>What are you recording?</legend>
+        <label>
+          <input type="radio" name="mode" checked={mode === 'in'} onChange={() => setMode('in')} />
+          Arriving
+        </label>{' '}
+        <label>
+          <input
+            type="radio"
+            name="mode"
+            checked={mode === 'out'}
+            onChange={() => setMode('out')}
+          />
+          Leaving
+        </label>
+      </fieldset>
+
       <div className="row">
-        <button onClick={() => setCamera((c) => !c)} disabled={summary ? !summary.open : false}>
+        <button onClick={() => setCamera((c) => !c)} disabled={!windowOpen}>
           {camera ? 'Stop camera' : 'Start camera'}
         </button>
       </div>
@@ -144,10 +195,14 @@ export function CheckIn() {
           Pass code (type or paste)
           <input value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
         </label>
-        <button type="submit" disabled={summary ? !summary.open : false}>
-          Check in
+        <button type="submit" disabled={!windowOpen}>
+          {mode === 'in' ? 'Check in' : 'Check out'}
         </button>
       </form>
+
+      {summary?.settings.allowWalkIns && (
+        <WalkIn eventId={id} disabled={!summary.open} onDone={refresh} setOutcome={setOutcome} />
+      )}
 
       {outcome &&
         (outcome.kind === 'ok' ? (
@@ -165,8 +220,9 @@ export function CheckIn() {
         <thead>
           <tr>
             <th>Name</th>
-            <th>Time (India)</th>
+            <th>In (India)</th>
             <th>How</th>
+            <th>Out</th>
           </tr>
         </thead>
         <tbody>
@@ -175,13 +231,25 @@ export function CheckIn() {
               <td>{r.attendee.name}</td>
               <td>{formatDateTime(r.checkedInAt)}</td>
               <td>
-                {r.method === 'qr' ? 'Scanned' : `By hand (${r.reason ?? ''})`} · {r.checkedInBy}
+                {r.method === 'qr'
+                  ? 'Scanned'
+                  : r.method === 'walk_in'
+                    ? 'Walk-in'
+                    : `By hand (${r.reason ?? ''})`}{' '}
+                · {r.checkedInBy}
+              </td>
+              <td>
+                {r.checkedOutAt
+                  ? `${formatDateTime(r.checkedOutAt)}${r.leftEarly ? ' (left early)' : ''}${
+                      r.checkOutMethod === 'manual' ? ` by hand (${r.checkOutReason ?? ''})` : ''
+                    }`
+                  : 'Inside'}
               </td>
             </tr>
           ))}
           {overview && overview.data.length === 0 && (
             <tr>
-              <td colSpan={3} className="muted">
+              <td colSpan={4} className="muted">
                 Nobody has checked in yet.
               </td>
             </tr>
@@ -189,13 +257,118 @@ export function CheckIn() {
         </tbody>
       </table>
 
-      {manager && <ManualCheckIn eventId={id} onDone={refresh} setOutcome={setOutcome} />}
+      {manager && summary && <Settings eventId={id} settings={summary.settings} onDone={refresh} />}
+      {manager && <ManualEntry eventId={id} onDone={refresh} setOutcome={setOutcome} />}
       {manager && <Volunteers eventId={id} />}
     </section>
   );
 }
 
-function ManualCheckIn({
+function WalkIn({
+  eventId,
+  disabled,
+  onDone,
+  setOutcome,
+}: {
+  eventId: string;
+  disabled: boolean;
+  onDone: () => Promise<void>;
+  setOutcome: (o: Outcome) => void;
+}) {
+  const [email, setEmail] = useState('');
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await api<{ data: CheckInResult }>(`/events/${eventId}/check-ins/walk-in`, {
+        method: 'POST',
+        body: { email },
+      });
+      setOutcome({
+        kind: 'ok',
+        text: `${res.data.attendee.name} is registered and checked in as a walk-in.`,
+      });
+      setEmail('');
+    } catch (err) {
+      setOutcome({ kind: 'error', text: errorText(err, 'Could not check the walk-in in.') });
+    }
+    await onDone();
+  }
+
+  return (
+    <>
+      <h2>Walk-in</h2>
+      <p className="muted">
+        For someone without a registration. They need an account; they take a seat, so a full event
+        refuses them.
+      </p>
+      <form onSubmit={(e) => void submit(e)}>
+        <label>
+          Walk-in’s account email
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+        <button type="submit" disabled={disabled}>
+          Check in walk-in
+        </button>
+      </form>
+    </>
+  );
+}
+
+function Settings({
+  eventId,
+  settings,
+  onDone,
+}: {
+  eventId: string;
+  settings: AttendanceSettings;
+  onDone: () => Promise<void>;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  async function change(patch: Partial<AttendanceSettings>) {
+    setError(null);
+    try {
+      await api(`/events/${eventId}/attendance-settings`, { method: 'PUT', body: patch });
+    } catch (err) {
+      setError(errorText(err, 'Could not save the setting.'));
+    }
+    await onDone();
+  }
+
+  return (
+    <>
+      <h2>Settings for this event</h2>
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+      <p>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.allowWalkIns}
+            onChange={(e) => void change({ allowWalkIns: e.target.checked })}
+          />
+          Allow walk-ins (people without a registration)
+        </label>
+      </p>
+      <p>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.requireCheckOut}
+            onChange={(e) => void change({ requireCheckOut: e.target.checked })}
+          />
+          Require check-out (someone counts as having attended only if they stay to the end)
+        </label>
+      </p>
+    </>
+  );
+}
+
+function ManualEntry({
   eventId,
   onDone,
   setOutcome,
@@ -214,41 +387,43 @@ function ManualCheckIn({
       .catch(() => setPeople([]));
   }, [eventId]);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    try {
-      const res = await api<{ data: CheckInResult }>(`/events/${eventId}/check-ins/manual`, {
-        method: 'POST',
-        body: { registrationId, reason },
-      });
-      setOutcome({ kind: 'ok', text: `${res.data.attendee.name} is checked in by hand.` });
-      setReason('');
-    } catch (err) {
-      const issues = fieldIssues(err);
+  async function record(kind: 'in' | 'out') {
+    if (!registrationId || reason.trim().length < 3) {
       setOutcome({
         kind: 'error',
-        text: issues.length
-          ? issues.map((i) => i.message).join(' ')
-          : err instanceof ApiError
-            ? err.message
-            : 'Could not check in.',
+        text: 'Choose the person and give a reason (at least 3 characters).',
       });
+      return;
+    }
+    try {
+      if (kind === 'in') {
+        const res = await api<{ data: CheckInResult }>(`/events/${eventId}/check-ins/manual`, {
+          method: 'POST',
+          body: { registrationId, reason },
+        });
+        setOutcome({ kind: 'ok', text: `${res.data.attendee.name} is checked in by hand.` });
+      } else {
+        const res = await api<{ data: CheckOutResult }>(`/events/${eventId}/check-outs/manual`, {
+          method: 'POST',
+          body: { registrationId, reason },
+        });
+        setOutcome({ kind: 'ok', text: checkOutText(res.data, ' by hand') });
+      }
+      setReason('');
+    } catch (err) {
+      setOutcome({ kind: 'error', text: errorText(err, 'Could not record that.') });
     }
     await onDone();
   }
 
   return (
     <>
-      <h2>Check in by hand</h2>
+      <h2>Record by hand</h2>
       <p className="muted">For a pass that cannot be scanned. The reason is recorded.</p>
-      <form onSubmit={(e) => void submit(e)}>
+      <form onSubmit={(e) => e.preventDefault()}>
         <label>
           Person
-          <select
-            value={registrationId}
-            onChange={(e) => setRegistrationId(e.target.value)}
-            required
-          >
+          <select value={registrationId} onChange={(e) => setRegistrationId(e.target.value)}>
             <option value="">Choose…</option>
             {people.map((p) => (
               <option key={p.id} value={p.id}>
@@ -259,14 +434,14 @@ function ManualCheckIn({
         </label>
         <label>
           Reason
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            maxLength={300}
-            required
-          />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} />
         </label>
-        <button type="submit">Check in by hand</button>
+        <button type="button" onClick={() => void record('in')}>
+          Check in by hand
+        </button>{' '}
+        <button type="button" onClick={() => void record('out')}>
+          Check out by hand
+        </button>
       </form>
     </>
   );

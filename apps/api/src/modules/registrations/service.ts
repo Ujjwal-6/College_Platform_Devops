@@ -313,6 +313,40 @@ async function promoteFromWaitlist(
   }
 }
 
+/**
+ * Registers a person on the spot at the gate (a walk-in the organizer allowed). The caller holds the
+ * event lock and has already checked the permission and the check-in window. Unlike a normal
+ * registration it ignores the registration deadline, but the event must be published, individual,
+ * and still have a seat: walk-ins do not exceed the capacity.
+ */
+export async function registerWalkIn(
+  tx: Executor,
+  event: EventRecord,
+  userId: string,
+  actorId: string,
+  meta: RequestMeta,
+): Promise<RegistrationRecord> {
+  if (event.status !== 'published') {
+    throw errors.conflict('REGISTRATION_CLOSED', 'Registration is not open for this event');
+  }
+  if (event.registrationMode !== 'individual') {
+    throw errors.conflict(
+      'WALK_IN_NOT_AVAILABLE',
+      'Walk-ins are only possible for individual events',
+    );
+  }
+  const reg = await takeSeat(tx, event, userId, null);
+  await recordAudit(tx, {
+    actorId,
+    action: 'registration.created',
+    targetType: 'registration',
+    targetId: reg.id,
+    metadata: { eventId: event.id, walkIn: true, registeredUserId: userId },
+    ...meta,
+  });
+  return reg;
+}
+
 // ---- teams ---------------------------------------------------------------------------------------
 
 export async function createTeam(

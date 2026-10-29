@@ -138,7 +138,7 @@ const templates = {
       url: string;
     }): Omit<MailMessage, 'to'> => ({
       subject: oneLine(`Your gate pass: ${d.eventTitle}`),
-      text: `Hello ${d.name},\n\nYour gate pass for "${d.eventTitle}" (${d.when}) is ready. Sign in and open the event page to see your QR code or download the PDF:\n${d.url}\n\nShow the QR code at the gate. It works once, so please do not share it.\n`,
+      text: `Hello ${d.name},\n\nYour gate pass for "${d.eventTitle}" (${d.when}) is ready. Sign in and open the event page to see your QR code or download the PDF:\n${d.url}\n\nShow the QR code at the gate when you arrive and again when you leave. Please do not share it.\n`,
     }),
   },
   'registration.event_cancelled': {
