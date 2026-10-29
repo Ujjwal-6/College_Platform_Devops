@@ -1,6 +1,7 @@
 import type { Executor } from '../../platform/db.js';
 
-export type CheckInMethod = 'qr' | 'manual';
+export type CheckInMethod = 'qr' | 'manual' | 'walk_in';
+export type CheckOutMethod = 'qr' | 'manual';
 
 export interface AttendanceRecord {
   id: string;
@@ -11,6 +12,10 @@ export interface AttendanceRecord {
   method: CheckInMethod;
   reason: string | null;
   checkedInAt: Date;
+  checkedOutAt: Date | null;
+  checkedOutBy: string | null;
+  checkOutMethod: CheckOutMethod | null;
+  checkOutReason: string | null;
 }
 
 function map(r: Record<string, unknown>): AttendanceRecord {
@@ -23,6 +28,10 @@ function map(r: Record<string, unknown>): AttendanceRecord {
     method: r.method as CheckInMethod,
     reason: (r.reason as string | null) ?? null,
     checkedInAt: r.checked_in_at as Date,
+    checkedOutAt: (r.checked_out_at as Date | null) ?? null,
+    checkedOutBy: (r.checked_out_by as string | null) ?? null,
+    checkOutMethod: (r.check_out_method as CheckOutMethod | null) ?? null,
+    checkOutReason: (r.check_out_reason as string | null) ?? null,
   };
 }
 
@@ -77,6 +86,55 @@ export async function listForEvent(
     `SELECT * FROM attendance WHERE event_id = $1
       ORDER BY checked_in_at DESC, id LIMIT $2 OFFSET $3`,
     [eventId, limit, offset],
+  );
+  return rows.map(map);
+}
+
+/**
+ * Records leaving. Only the first call changes anything: the `checked_out_at IS NULL` test is part of
+ * the UPDATE, so two scanners at the exit cannot both record it. Returns null if already checked out.
+ */
+export async function markCheckedOut(
+  db: Executor,
+  registrationId: string,
+  by: string,
+  method: CheckOutMethod,
+  reason: string | null,
+): Promise<AttendanceRecord | null> {
+  const { rows } = await db.query(
+    `UPDATE attendance SET checked_out_at = now(), checked_out_by = $2, check_out_method = $3,
+            check_out_reason = $4
+      WHERE registration_id = $1 AND checked_out_at IS NULL RETURNING *`,
+    [registrationId, by, method, reason],
+  );
+  return rows[0] ? map(rows[0]) : null;
+}
+
+export async function countCheckedOut(db: Executor, eventId: string): Promise<number> {
+  const { rows } = await db.query(
+    'SELECT count(*)::int AS n FROM attendance WHERE event_id = $1 AND checked_out_at IS NOT NULL',
+    [eventId],
+  );
+  return rows[0].n as number;
+}
+
+/** People who stayed until (nearly) the end: checked out at or after `notBefore`. */
+export async function countStayedUntil(
+  db: Executor,
+  eventId: string,
+  notBefore: Date,
+): Promise<number> {
+  const { rows } = await db.query(
+    'SELECT count(*)::int AS n FROM attendance WHERE event_id = $1 AND checked_out_at >= $2',
+    [eventId, notBefore],
+  );
+  return rows[0].n as number;
+}
+
+export async function listAllForEvent(db: Executor, eventId: string): Promise<AttendanceRecord[]> {
+  const { rows } = await db.query(
+    'SELECT * FROM attendance WHERE event_id = $1 ORDER BY checked_in_at, id',
+    [eventId],
   );
   return rows.map(map);
 }
@@ -174,4 +232,41 @@ export async function insertGatePass(
     [registrationId, storageKey],
   );
   return rowCount === 1;
+}
+
+// ---- settings ----------------------------------------------------------------------------------
+
+export interface AttendanceSettings {
+  allowWalkIns: boolean;
+  requireCheckOut: boolean;
+}
+
+export const DEFAULT_SETTINGS: AttendanceSettings = { allowWalkIns: false, requireCheckOut: true };
+
+export async function getSettings(db: Executor, eventId: string): Promise<AttendanceSettings> {
+  const { rows } = await db.query(
+    'SELECT allow_walk_ins, require_check_out FROM event_attendance_settings WHERE event_id = $1',
+    [eventId],
+  );
+  return rows[0]
+    ? {
+        allowWalkIns: rows[0].allow_walk_ins as boolean,
+        requireCheckOut: rows[0].require_check_out as boolean,
+      }
+    : DEFAULT_SETTINGS;
+}
+
+export async function saveSettings(
+  db: Executor,
+  eventId: string,
+  s: AttendanceSettings,
+  updatedBy: string,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO event_attendance_settings (event_id, allow_walk_ins, require_check_out, updated_by)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (event_id) DO UPDATE
+       SET allow_walk_ins = $2, require_check_out = $3, updated_by = $4, updated_at = now()`,
+    [eventId, s.allowWalkIns, s.requireCheckOut, updatedBy],
+  );
 }

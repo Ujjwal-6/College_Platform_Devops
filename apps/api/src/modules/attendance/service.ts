@@ -16,14 +16,19 @@ import {
   countRegistered,
   getRegistrationById,
   getTeamById,
+  registerWalkIn,
   type RegistrationRecord,
 } from '../registrations/index.js';
 import * as usersRepo from '../users/repository.js';
 import { qrDataUrl, signCheckInToken, verifyCheckInToken } from './qr.js';
 import * as repo from './repository.js';
 
-/** Check-in opens two hours before the event starts and closes when it ends (assumption A-3). */
-const OPENS_BEFORE_START_MS = 2 * 3_600_000;
+/** Check-in opens 15 minutes before the event starts and closes when it ends (product owner, 2026-10-27). */
+const OPENS_BEFORE_START_MS = 15 * 60_000;
+/** Check-out stays open for an hour after the end, so everyone leaving at the finish can be recorded. */
+const CHECK_OUT_AFTER_END_MS = 60 * 60_000;
+/** Leaving up to this long before the end still counts as staying for the whole event (assumption A-11). */
+const FULL_STAY_GRACE_MS = 15 * 60_000;
 
 export const scanSchema = z.object({ token: z.string().trim().min(1).max(600) }).strict();
 export const manualSchema = z
@@ -32,6 +37,16 @@ export const manualSchema = z
     reason: z.string().trim().min(3, 'Please say why (at least 3 characters)').max(300),
   })
   .strict();
+export const walkInSchema = z
+  .object({ email: z.string().trim().toLowerCase().email().max(254) })
+  .strict();
+export const settingsSchema = z
+  .object({ allowWalkIns: z.boolean().optional(), requireCheckOut: z.boolean().optional() })
+  .strict()
+  .refine(
+    (v) => v.allowWalkIns !== undefined || v.requireCheckOut !== undefined,
+    'Nothing to change',
+  );
 export const volunteerSchema = z
   .object({ email: z.string().trim().toLowerCase().email().max(254) })
   .strict();
@@ -75,8 +90,13 @@ export function checkInWindow(event: Pick<EventRecord, 'startAt' | 'endAt'>) {
   return {
     opensAt: new Date(event.startAt.getTime() - OPENS_BEFORE_START_MS),
     closesAt: event.endAt,
+    checkOutClosesAt: new Date(event.endAt.getTime() + CHECK_OUT_AFTER_END_MS),
   };
 }
+
+/** Whether leaving at `at` counts as having stayed for the event (see A-11). */
+export const stayedToTheEnd = (event: Pick<EventRecord, 'endAt'>, at: Date) =>
+  at.getTime() >= event.endAt.getTime() - FULL_STAY_GRACE_MS;
 
 function assertCheckInOpen(event: EventRecord, now = new Date()): void {
   const { opensAt, closesAt } = checkInWindow(event);
@@ -91,6 +111,19 @@ function assertCheckInOpen(event: EventRecord, now = new Date()): void {
   }
 }
 
+function assertCheckOutOpen(event: EventRecord, now = new Date()): void {
+  const { opensAt, checkOutClosesAt } = checkInWindow(event);
+  if (event.status !== 'published' && event.status !== 'closed') {
+    throw errors.conflict('CHECK_OUT_CLOSED', 'Check-out is only open for published events');
+  }
+  if (now < opensAt || now >= checkOutClosesAt) {
+    throw new AppError(409, 'CHECK_OUT_CLOSED', 'Check-out is not open right now', {
+      opensAt: opensAt.toISOString(),
+      closesAt: checkOutClosesAt.toISOString(),
+    });
+  }
+}
+
 // ---- checking people in ------------------------------------------------------------------------
 
 export interface CheckInResult {
@@ -98,9 +131,9 @@ export interface CheckInResult {
   registrationId: string;
   attendee: { id: string; name: string };
   team: string | null;
-  method: 'qr' | 'manual';
+  method: repo.CheckInMethod;
   checkedInAt: string;
-  counts: { registered: number; checkedIn: number };
+  counts: { registered: number; checkedIn: number; inside: number };
 }
 
 async function resultFor(
@@ -117,10 +150,16 @@ async function resultFor(
     team: team?.name ?? null,
     method: record.method,
     checkedInAt: record.checkedInAt.toISOString(),
-    counts: {
-      registered: await countRegistered(db, reg.eventId),
-      checkedIn: await repo.countForEvent(db, reg.eventId),
-    },
+    counts: await liveCounts(db, reg.eventId),
+  };
+}
+
+async function liveCounts(db: Executor, eventId: string) {
+  const checkedIn = await repo.countForEvent(db, eventId);
+  return {
+    registered: await countRegistered(db, eventId),
+    checkedIn,
+    inside: checkedIn - (await repo.countCheckedOut(db, eventId)),
   };
 }
 
@@ -228,15 +267,232 @@ export async function checkInManually(
   });
 }
 
+/** Checks a person in at the gate who has no registration, when the organizer allowed walk-ins for this event. */
+export async function checkInWalkIn(
+  ctx: AppContext,
+  user: AuthUser,
+  eventId: string,
+  input: z.infer<typeof walkInSchema>,
+  meta: RequestMeta,
+): Promise<CheckInResult> {
+  return run(ctx, async (tx) => {
+    const event = await loadEvent(tx, user, eventId, true);
+    await assertScanner(tx, user, event);
+    if (!(await repo.getSettings(tx, event.id)).allowWalkIns) {
+      throw errors.conflict(
+        'WALK_INS_NOT_ALLOWED',
+        'The organizer has not allowed walk-ins for this event',
+      );
+    }
+    assertCheckInOpen(event);
+
+    const person = await usersRepo.findContactByEmail(tx, input.email);
+    if (!person || !person.isActive) throw errors.notFound('Active user with that email');
+    const reg = await registerWalkIn(tx, event, person.id, user.id, meta);
+    const record = await repo.insertAttendance(tx, {
+      registrationId: reg.id,
+      eventId: event.id,
+      userId: reg.userId,
+      checkedInBy: user.id,
+      method: 'walk_in',
+      reason: null,
+    });
+    if (!record) throw await alreadyCheckedIn(tx, reg.id);
+
+    await recordAudit(tx, {
+      actorId: user.id,
+      action: 'attendance.walk_in',
+      targetType: 'attendance',
+      targetId: record.id,
+      metadata: { eventId: event.id, registrationId: reg.id, userId: person.id },
+      ...meta,
+    });
+    return resultFor(tx, reg, record);
+  });
+}
+
+// ---- checking people out -----------------------------------------------------------------------
+
+export interface CheckOutResult {
+  attendanceId: string;
+  registrationId: string;
+  attendee: { id: string; name: string };
+  team: string | null;
+  method: repo.CheckOutMethod;
+  checkedInAt: string;
+  checkedOutAt: string;
+  stayedMinutes: number;
+  /** Left more than 15 minutes before the end. */
+  leftEarly: boolean;
+  counts: { registered: number; checkedIn: number; inside: number };
+}
+
+async function checkOutResult(
+  db: Executor,
+  event: EventRecord,
+  reg: RegistrationRecord,
+  record: repo.AttendanceRecord,
+): Promise<CheckOutResult> {
+  const out = record.checkedOutAt!;
+  const [person] = await usersRepo.getContacts(db, [reg.userId]);
+  const team = reg.teamId ? await getTeamById(db, reg.teamId) : null;
+  return {
+    attendanceId: record.id,
+    registrationId: reg.id,
+    attendee: { id: reg.userId, name: person?.name ?? '' },
+    team: team?.name ?? null,
+    method: record.checkOutMethod!,
+    checkedInAt: record.checkedInAt.toISOString(),
+    checkedOutAt: out.toISOString(),
+    stayedMinutes: Math.round((out.getTime() - record.checkedInAt.getTime()) / 60_000),
+    leftEarly: !stayedToTheEnd(event, out),
+    counts: await liveCounts(db, reg.eventId),
+  };
+}
+
+/** Records leaving for the person whose pass is scanned. They must have been checked in, and can leave once. */
+async function checkOut(
+  tx: PoolClient,
+  user: AuthUser,
+  event: EventRecord,
+  reg: RegistrationRecord,
+  method: repo.CheckOutMethod,
+  reason: string | null,
+  meta: RequestMeta,
+): Promise<CheckOutResult> {
+  const existing = await repo.findByRegistration(tx, reg.id);
+  if (!existing) {
+    throw errors.conflict(
+      'NOT_CHECKED_IN',
+      'This person has not been checked in, so cannot be checked out',
+    );
+  }
+  const record = await repo.markCheckedOut(tx, reg.id, user.id, method, reason);
+  if (!record) {
+    throw new AppError(409, 'ALREADY_CHECKED_OUT', 'This person has already been checked out', {
+      checkedOutAt: existing.checkedOutAt?.toISOString() ?? null,
+      method: existing.checkOutMethod,
+    });
+  }
+  await recordAudit(tx, {
+    actorId: user.id,
+    action: method === 'qr' ? 'attendance.checked_out' : 'attendance.manual_check_out',
+    targetType: 'attendance',
+    targetId: record.id,
+    metadata: {
+      eventId: event.id,
+      registrationId: reg.id,
+      method,
+      leftEarly: !stayedToTheEnd(event, record.checkedOutAt!),
+      ...(reason ? { reason } : {}),
+    },
+    ...meta,
+  });
+  return checkOutResult(tx, event, reg, record);
+}
+
+/** Records leaving from a scanned gate-pass code (scanned again at the exit). */
+export async function checkOutByCode(
+  ctx: AppContext,
+  user: AuthUser,
+  eventId: string,
+  token: string,
+  meta: RequestMeta,
+): Promise<CheckOutResult> {
+  return run(ctx, async (tx) => {
+    const event = await loadEvent(tx, user, eventId, true);
+    await assertScanner(tx, user, event);
+    const verified = verifyCheckInToken(ctx.config, token);
+    if (!verified.ok) {
+      throw verified.reason === 'expired'
+        ? errors.validation([{ path: 'token', message: 'This pass has expired' }])
+        : errors.validation([{ path: 'token', message: 'This is not a valid gate pass code' }]);
+    }
+    if (verified.eventId !== event.id) {
+      throw errors.validation([{ path: 'token', message: 'This pass is for a different event' }]);
+    }
+    assertCheckOutOpen(event);
+    const reg = assertCheckable(await getRegistrationById(tx, verified.registrationId), event.id);
+    return checkOut(tx, user, event, reg, 'qr', null, meta);
+  });
+}
+
+/** Fallback when a pass cannot be scanned at the exit: the organizer or an admin records it and says why. */
+export async function checkOutManually(
+  ctx: AppContext,
+  user: AuthUser,
+  eventId: string,
+  input: z.infer<typeof manualSchema>,
+  meta: RequestMeta,
+): Promise<CheckOutResult> {
+  return run(ctx, async (tx) => {
+    const event = await loadEvent(tx, user, eventId, true);
+    if (!isManager(user, event)) throw errors.forbidden();
+    assertCheckOutOpen(event);
+    const reg = assertCheckable(await getRegistrationById(tx, input.registrationId), event.id);
+    return checkOut(tx, user, event, reg, 'manual', input.reason, meta);
+  });
+}
+
+// ---- settings ----------------------------------------------------------------------------------
+
+/** What the organizer chose for this event (defaults when nothing was chosen). Scanners and staff may look. */
+export async function getSettings(ctx: AppContext, user: AuthUser, eventId: string) {
+  const event = await loadEvent(ctx.pool, user, eventId);
+  if (!(await canScan(ctx.pool, user, event)) && !canViewWorkflow(user, event)) {
+    throw errors.forbidden();
+  }
+  return repo.getSettings(ctx.pool, eventId);
+}
+
+export async function updateSettings(
+  ctx: AppContext,
+  user: AuthUser,
+  eventId: string,
+  input: z.infer<typeof settingsSchema>,
+  meta: RequestMeta,
+) {
+  return run(ctx, async (tx) => {
+    const event = await loadEvent(tx, user, eventId, true);
+    if (!isManager(user, event)) throw errors.forbidden();
+    if (event.status === 'closed' || event.status === 'cancelled') {
+      throw errors.conflict('EVENT_ENDED', 'This event is closed or cancelled');
+    }
+    const before = await repo.getSettings(tx, eventId);
+    const after = {
+      allowWalkIns: input.allowWalkIns ?? before.allowWalkIns,
+      requireCheckOut: input.requireCheckOut ?? before.requireCheckOut,
+    };
+    await repo.saveSettings(tx, eventId, after, user.id);
+    await recordAudit(tx, {
+      actorId: user.id,
+      action: 'attendance.settings_changed',
+      targetType: 'event',
+      targetId: eventId,
+      metadata: { before, after },
+      ...meta,
+    });
+    return after;
+  });
+}
+
 // ---- reading -----------------------------------------------------------------------------------
 
 export interface AttendanceSummary {
   registered: number;
   checkedIn: number;
   remaining: number;
+  /** Checked in and not yet checked out. */
+  inside: number;
+  checkedOut: number;
+  /** Stayed to the end (or, when check-out is not required, simply checked in). */
+  completed: number;
   open: boolean;
+  checkOutOpen: boolean;
   opensAt: string;
   closesAt: string;
+  checkOutClosesAt: string;
+  settings: repo.AttendanceSettings;
 }
 
 /** Live numbers and the latest check-ins. Scanners and the event's department staff may look. */
@@ -252,23 +508,47 @@ export async function overview(
   }
   const registered = await countRegistered(ctx.pool, eventId);
   const checkedIn = await repo.countForEvent(ctx.pool, eventId);
+  const checkedOut = await repo.countCheckedOut(ctx.pool, eventId);
+  const settings = await repo.getSettings(ctx.pool, eventId);
+  const completed = settings.requireCheckOut
+    ? await repo.countStayedUntil(
+        ctx.pool,
+        eventId,
+        new Date(event.endAt.getTime() - FULL_STAY_GRACE_MS),
+      )
+    : checkedIn;
   const rows = await repo.listForEvent(ctx.pool, eventId, q.limit, q.offset);
   const contacts = new Map(
     (
       await usersRepo.getContacts(ctx.pool, [
-        ...new Set(rows.flatMap((r) => [r.userId, r.checkedInBy])),
+        ...new Set(
+          rows.flatMap((r) => [
+            r.userId,
+            r.checkedInBy,
+            ...(r.checkedOutBy ? [r.checkedOutBy] : []),
+          ]),
+        ),
       ])
     ).map((c) => [c.id, c.name]),
   );
-  const { opensAt, closesAt } = checkInWindow(event);
+  const { opensAt, closesAt, checkOutClosesAt } = checkInWindow(event);
   const now = new Date();
   const summary: AttendanceSummary = {
     registered,
     checkedIn,
     remaining: Math.max(0, registered - checkedIn),
+    inside: checkedIn - checkedOut,
+    checkedOut,
+    completed,
     open: event.status === 'published' && now >= opensAt && now < closesAt,
+    checkOutOpen:
+      (event.status === 'published' || event.status === 'closed') &&
+      now >= opensAt &&
+      now < checkOutClosesAt,
     opensAt: opensAt.toISOString(),
     closesAt: closesAt.toISOString(),
+    checkOutClosesAt: checkOutClosesAt.toISOString(),
+    settings,
   };
   return {
     summary,
@@ -280,6 +560,11 @@ export async function overview(
       method: r.method,
       reason: r.reason,
       checkedInAt: r.checkedInAt.toISOString(),
+      checkedOutAt: r.checkedOutAt?.toISOString() ?? null,
+      checkedOutBy: r.checkedOutBy ? (contacts.get(r.checkedOutBy) ?? '') : null,
+      checkOutMethod: r.checkOutMethod,
+      checkOutReason: r.checkOutReason,
+      leftEarly: r.checkedOutAt ? !stayedToTheEnd(event, r.checkedOutAt) : null,
     })),
     page: { total: checkedIn, limit: q.limit, offset: q.offset },
   };
@@ -293,11 +578,11 @@ export interface CheckInEvent {
   role: 'admin' | 'organizer' | 'volunteer';
 }
 
-/** Events the person can scan passes for right now: published and not finished. */
+/** Events the person can scan passes for: published and not finished (or finished less than an hour ago, for check-out). */
 export async function myCheckInEvents(ctx: AppContext, user: AuthUser): Promise<CheckInEvent[]> {
   const found = new Map<string, CheckInEvent>();
   const add = (e: EventRecord, role: CheckInEvent['role']) => {
-    if (e.status !== 'published' || e.endAt <= new Date() || found.has(e.id)) return;
+    if (found.has(e.id) || e.endAt.getTime() + CHECK_OUT_AFTER_END_MS <= Date.now()) return;
     found.set(e.id, {
       id: e.id,
       title: e.title,
@@ -309,7 +594,7 @@ export async function myCheckInEvents(ctx: AppContext, user: AuthUser): Promise<
   const base = {
     limit: 100,
     offset: 0,
-    statuses: ['published' as const],
+    statuses: ['published' as const, 'closed' as const],
     order: 'start_asc' as const,
   };
   if (isAdmin(user)) for (const e of (await listEvents(ctx.pool, base)).rows) add(e, 'admin');
@@ -318,7 +603,7 @@ export async function myCheckInEvents(ctx: AppContext, user: AuthUser): Promise<
   }
   for (const id of await repo.volunteerEventIds(ctx.pool, user.id)) {
     const e = await getEventById(ctx.pool, id);
-    if (e) add(e, 'volunteer');
+    if (e && (e.status === 'published' || e.status === 'closed')) add(e, 'volunteer');
   }
   return [...found.values()].sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
@@ -445,6 +730,7 @@ export async function myPass(ctx: AppContext, user: AuthUser, registrationId: st
     qrImage: await qrDataUrl(token),
     gatePassReady: (await repo.findGatePassKey(ctx.pool, reg.id)) !== null,
     checkedInAt: attended?.checkedInAt.toISOString() ?? null,
+    checkedOutAt: attended?.checkedOutAt?.toISOString() ?? null,
   };
 }
 
@@ -453,4 +739,43 @@ export async function myGatePass(ctx: AppContext, user: AuthUser, registrationId
   const reg = await ownActiveRegistration(ctx.pool, user, registrationId);
   const key = await repo.findGatePassKey(ctx.pool, reg.id);
   return key ? (await ctx.storage.get(key)).data : null;
+}
+
+// ---- for other features ------------------------------------------------------------------------
+
+export interface AttendanceReportRow {
+  userId: string;
+  registrationId: string;
+  checkedInAt: Date;
+  checkedOutAt: Date | null;
+  method: repo.CheckInMethod;
+  /** Left more than 15 minutes before the end; null while still inside. */
+  leftEarly: boolean | null;
+  /**
+   * Counts as having attended: checked in and, when the organizer requires check-out (the default),
+   * checked out within 15 minutes of the end or later.
+   */
+  completed: boolean;
+}
+
+/** Everyone who was checked in to an event and whether they stayed. For certificates and reports. */
+export async function attendanceReport(
+  db: Executor,
+  eventId: string,
+): Promise<AttendanceReportRow[]> {
+  const event = await getEventById(db, eventId);
+  if (!event) return [];
+  const { requireCheckOut } = await repo.getSettings(db, eventId);
+  return (await repo.listAllForEvent(db, eventId)).map((r) => {
+    const stayed = r.checkedOutAt ? stayedToTheEnd(event, r.checkedOutAt) : false;
+    return {
+      userId: r.userId,
+      registrationId: r.registrationId,
+      checkedInAt: r.checkedInAt,
+      checkedOutAt: r.checkedOutAt,
+      method: r.method,
+      leftEarly: r.checkedOutAt ? !stayed : null,
+      completed: requireCheckOut ? stayed : true,
+    };
+  });
 }

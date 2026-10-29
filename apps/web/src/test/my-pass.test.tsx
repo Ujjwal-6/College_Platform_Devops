@@ -54,6 +54,7 @@ const pass = (over: Record<string, unknown> = {}) =>
       qrImage: 'data:image/png;base64,AAAA',
       gatePassReady: true,
       checkedInAt: null,
+      checkedOutAt: null,
       ...over,
     },
   });
@@ -73,7 +74,7 @@ describe('my gate pass on the event page', () => {
     expect(image).toHaveAttribute('src', 'data:image/png;base64,AAAA');
     expect(screen.getByText('EQ1.payload.signature')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download gate pass (PDF)' })).toBeInTheDocument();
-    expect(screen.getByText(/It works once/)).toBeInTheDocument();
+    expect(screen.getByText(/again when you leave/)).toBeInTheDocument();
   });
 
   it('says the PDF is being prepared until the worker has made it', async () => {
@@ -105,7 +106,7 @@ describe('my gate pass on the event page', () => {
       [QR]: () => pass(),
       'GET /api/registrations/r1/gate-pass': () =>
         Promise.resolve(
-          new Response('%PDF-1.3', {
+          new Response(new Blob(['%PDF-1.3']), {
             status: 200,
             headers: { 'Content-Type': 'application/pdf' },
           }),
@@ -151,6 +152,18 @@ describe('my gate pass on the event page', () => {
     });
     renderApp('/events/e1');
     expect(await screen.findByText('You were checked in')).toBeInTheDocument();
+  });
+
+  it('shows when the person left', async () => {
+    mockFetch({
+      ...session(studentUser),
+      'GET /api/events/e1': () => json(200, { data: published() }),
+      [SUMMARY]: () => summary(),
+      [QR]: () =>
+        pass({ checkedInAt: '2031-03-01T04:40:00.000Z', checkedOutAt: '2031-03-01T06:20:00.000Z' }),
+    });
+    renderApp('/events/e1');
+    expect(await screen.findByText(/and checked out at/)).toBeInTheDocument();
   });
 
   it('shows no pass to someone who is not registered', async () => {

@@ -33,9 +33,15 @@ const summary = (over: Record<string, unknown> = {}) => ({
   registered: 5,
   checkedIn: 2,
   remaining: 3,
+  inside: 2,
+  checkedOut: 0,
+  completed: 0,
   open: true,
+  checkOutOpen: true,
   opensAt: '2031-03-01T02:30:00.000Z',
   closesAt: '2031-03-01T06:30:00.000Z',
+  checkOutClosesAt: '2031-03-01T07:30:00.000Z',
+  settings: { allowWalkIns: false, requireCheckOut: true },
   ...over,
 });
 const row = (over: Record<string, unknown> = {}) => ({
@@ -46,6 +52,11 @@ const row = (over: Record<string, unknown> = {}) => ({
   method: 'qr',
   reason: null,
   checkedInAt: '2031-03-01T04:40:00.000Z',
+  checkedOutAt: null,
+  checkedOutBy: null,
+  checkOutMethod: null,
+  checkOutReason: null,
+  leftEarly: null,
   ...over,
 });
 const overview = (s = summary(), data: object[] = [row()]) =>
@@ -71,7 +82,7 @@ const ok = (name = 'Priya Sharma', team: string | null = null) =>
       team,
       method: 'qr',
       checkedInAt: '2031-03-01T04:45:00.000Z',
-      counts: { registered: 5, checkedIn: 3 },
+      counts: { registered: 5, checkedIn: 3, inside: 3 },
     },
   });
 
@@ -188,7 +199,7 @@ describe('who sees what', () => {
   it('shows the organizer the by-hand form and the volunteers', async () => {
     mockFetch(base());
     renderApp('/events/e1/check-in');
-    expect(await screen.findByRole('heading', { name: 'Check in by hand' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Record by hand' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Volunteers' })).toBeInTheDocument();
   });
 
@@ -203,7 +214,10 @@ describe('who sees what', () => {
     renderApp('/events/e1/check-in');
     expect(await screen.findByLabelText('Pass code (type or paste)')).toBeInTheDocument();
     await screen.findByText('2 of 5 checked in');
-    expect(screen.queryByRole('heading', { name: 'Check in by hand' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Record by hand' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Settings for this event' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Volunteers' })).not.toBeInTheDocument();
     expect(
       calls.some((c) => c.key.includes('/volunteers') || c.key.includes('/registrations?')),
@@ -356,5 +370,287 @@ describe('the list of events to check in for', () => {
     });
     renderApp('/check-in');
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+  });
+});
+
+const out = (over: Record<string, unknown> = {}) =>
+  json(201, {
+    data: {
+      attendanceId: 'a1',
+      registrationId: 'r1',
+      attendee: { id: 'u1', name: 'Priya Sharma' },
+      team: null,
+      method: 'qr',
+      checkedInAt: '2031-03-01T04:00:00.000Z',
+      checkedOutAt: '2031-03-01T04:45:00.000Z',
+      stayedMinutes: 45,
+      leftEarly: false,
+      counts: { registered: 5, checkedIn: 2, inside: 1 },
+      ...over,
+    },
+  });
+
+describe('leaving (check-out)', () => {
+  it('shows the live numbers including who is inside and who stayed', async () => {
+    mockFetch(base(organizerUser, summary({ inside: 1, checkedOut: 1, completed: 1 })));
+    renderApp('/events/e1/check-in');
+    expect(await screen.findByText(/1 inside · 1 left · 1 stayed to the end/)).toBeInTheDocument();
+  });
+
+  it('checks a code out when the person is recording people leaving', async () => {
+    const { calls } = mockFetch({
+      ...base(),
+      'POST /api/events/e1/check-outs': () => out({ stayedMinutes: 135, leftEarly: false }),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.click(await screen.findByLabelText('Leaving'));
+    await userEvent.type(screen.getByLabelText('Pass code (type or paste)'), 'EQ1.some.code');
+    await userEvent.click(screen.getByRole('button', { name: 'Check out' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Priya Sharma is checked out after 2 h 15 min.',
+    );
+    const post = calls.find((c) => c.key === 'POST /api/events/e1/check-outs')!;
+    expect(JSON.parse(String(post.init?.body))).toEqual({ token: 'EQ1.some.code' });
+    expect(calls.some((c) => c.key === 'POST /api/events/e1/check-ins')).toBe(false);
+  });
+
+  it('warns when the person left early', async () => {
+    mockFetch({
+      ...base(),
+      'POST /api/events/e1/check-outs': () => out({ stayedMinutes: 20, leftEarly: true }),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.click(await screen.findByLabelText('Leaving'));
+    await userEvent.type(screen.getByLabelText('Pass code (type or paste)'), 'EQ1.a.b');
+    await userEvent.click(screen.getByRole('button', { name: 'Check out' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'checked out after 20 min. Left early.',
+    );
+  });
+
+  it('uses the camera for leaving too', async () => {
+    const { calls } = mockFetch({ ...base(), 'POST /api/events/e1/check-outs': () => out() });
+    renderApp('/events/e1/check-in');
+    await userEvent.click(await screen.findByLabelText('Leaving'));
+    await userEvent.click(screen.getByRole('button', { name: 'Start camera' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'simulate scan' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('is checked out');
+    expect(calls.some((c) => c.key === 'POST /api/events/e1/check-outs')).toBe(true);
+  });
+
+  it('says "already checked out" with the time, and why a check-out was refused', async () => {
+    mockFetch({
+      ...base(),
+      'POST /api/events/e1/check-outs': () =>
+        json(409, {
+          error: {
+            code: 'ALREADY_CHECKED_OUT',
+            message: 'This person has already been checked out',
+            details: { checkedOutAt: '2031-03-01T04:45:00.000Z', method: 'qr' },
+          },
+        }),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.click(await screen.findByLabelText('Leaving'));
+    await userEvent.type(screen.getByLabelText('Pass code (type or paste)'), 'EQ1.a.b');
+    await userEvent.click(screen.getByRole('button', { name: 'Check out' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Already checked out at .*10:15/);
+  });
+
+  it('shows the not-checked-in refusal from the server', async () => {
+    mockFetch({
+      ...base(),
+      'POST /api/events/e1/check-outs': () =>
+        json(409, {
+          error: {
+            code: 'NOT_CHECKED_IN',
+            message: 'This person has not been checked in, so cannot be checked out',
+          },
+        }),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.click(await screen.findByLabelText('Leaving'));
+    await userEvent.type(screen.getByLabelText('Pass code (type or paste)'), 'EQ1.a.b');
+    await userEvent.click(screen.getByRole('button', { name: 'Check out' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('has not been checked in');
+  });
+
+  it('disables leaving, with an explanation, when check-out is closed, but arriving can still be open', async () => {
+    mockFetch(base(organizerUser, summary({ checkOutOpen: false })));
+    renderApp('/events/e1/check-in');
+    expect(await screen.findByRole('button', { name: 'Check in' })).toBeEnabled();
+    await userEvent.click(screen.getByLabelText('Leaving'));
+    expect(screen.getByText(/Check-out is closed right now/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check out' })).toBeDisabled();
+  });
+
+  it('shows in the list who left, who left early, and who is still inside', async () => {
+    mockFetch({
+      ...base(),
+      [ATTENDANCE]: () =>
+        overview(summary(), [
+          row({
+            id: 'a1',
+            attendee: { id: 'u1', name: 'Priya Sharma' },
+            checkedOutAt: '2031-03-01T06:20:00.000Z',
+            leftEarly: false,
+          }),
+          row({
+            id: 'a2',
+            attendee: { id: 'u2', name: 'Ravi Kumar' },
+            checkedOutAt: '2031-03-01T05:00:00.000Z',
+            leftEarly: true,
+          }),
+          row({ id: 'a3', attendee: { id: 'u3', name: 'Wendy Walker' }, method: 'walk_in' }),
+        ]),
+    });
+    renderApp('/events/e1/check-in');
+    const ravi = (await screen.findByText('Ravi Kumar')).closest('tr')!;
+    expect(within(ravi).getByText(/\(left early\)/)).toBeInTheDocument();
+    const wendy = screen.getByText('Wendy Walker').closest('tr')!;
+    expect(within(wendy).getByText('Inside')).toBeInTheDocument();
+    expect(within(wendy).getByText(/Walk-in/)).toBeInTheDocument();
+    const priya = screen.getByText('Priya Sharma').closest('tr')!;
+    expect(within(priya).queryByText(/left early/)).not.toBeInTheDocument();
+  });
+});
+
+describe('walk-ins', () => {
+  const allowed = (s = summary()) =>
+    summary({ ...s, settings: { allowWalkIns: true, requireCheckOut: true } });
+
+  it('are not offered unless the organizer allowed them', async () => {
+    mockFetch(base());
+    renderApp('/events/e1/check-in');
+    await screen.findByText('2 of 5 checked in');
+    expect(screen.queryByRole('heading', { name: 'Walk-in' })).not.toBeInTheDocument();
+  });
+
+  it('are offered to a volunteer too, and check the person in', async () => {
+    const { calls } = mockFetch({
+      ...base(studentUser, allowed()),
+      'POST /api/events/e1/check-ins/walk-in': () => ok('Wendy Walker'),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.type(
+      await screen.findByLabelText('Walk-in’s account email'),
+      'wendy@college.test',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Check in walk-in' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Wendy Walker is registered and checked in as a walk-in.',
+    );
+    const post = calls.find((c) => c.key === 'POST /api/events/e1/check-ins/walk-in')!;
+    expect(JSON.parse(String(post.init?.body))).toEqual({ email: 'wendy@college.test' });
+  });
+
+  it('shows why a walk-in was refused', async () => {
+    mockFetch({
+      ...base(organizerUser, allowed()),
+      'POST /api/events/e1/check-ins/walk-in': () =>
+        json(409, { error: { code: 'EVENT_FULL', message: 'This event is full' } }),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.type(
+      await screen.findByLabelText('Walk-in’s account email'),
+      'wendy@college.test',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Check in walk-in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('This event is full');
+  });
+
+  it('cannot be submitted while check-in is closed', async () => {
+    mockFetch(base(organizerUser, allowed(summary({ open: false }))));
+    renderApp('/events/e1/check-in');
+    expect(await screen.findByRole('button', { name: 'Check in walk-in' })).toBeDisabled();
+  });
+});
+
+describe('the organizer’s settings', () => {
+  it('shows the current choices and saves a change', async () => {
+    let settings = { allowWalkIns: false, requireCheckOut: true };
+    const { calls } = mockFetch({
+      ...base(),
+      [ATTENDANCE]: () => overview(summary({ settings })),
+      'PUT /api/events/e1/attendance-settings': () => {
+        settings = { ...settings, allowWalkIns: true };
+        return json(200, { data: settings });
+      },
+    });
+    renderApp('/events/e1/check-in');
+    const walkIns = await screen.findByLabelText(/Allow walk-ins/);
+    expect(walkIns).not.toBeChecked();
+    expect(screen.getByLabelText(/Require check-out/)).toBeChecked();
+
+    await userEvent.click(walkIns);
+    await waitFor(() => expect(screen.getByLabelText(/Allow walk-ins/)).toBeChecked());
+    const put = calls.find((c) => c.key === 'PUT /api/events/e1/attendance-settings')!;
+    expect(JSON.parse(String(put.init?.body))).toEqual({ allowWalkIns: true });
+    expect(await screen.findByRole('heading', { name: 'Walk-in' })).toBeInTheDocument();
+  });
+
+  it('shows the server message when a change is refused', async () => {
+    mockFetch({
+      ...base(),
+      'PUT /api/events/e1/attendance-settings': () =>
+        json(409, { error: { code: 'EVENT_ENDED', message: 'This event is closed or cancelled' } }),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.click(await screen.findByLabelText(/Require check-out/));
+    expect(await screen.findByRole('alert')).toHaveTextContent('closed or cancelled');
+  });
+});
+
+describe('checking out by hand', () => {
+  const people = {
+    data: [
+      {
+        id: 'r7',
+        eventId: 'e1',
+        status: 'registered',
+        cancelReason: null,
+        registeredAt: '2031-02-01T04:30:00.000Z',
+        cancelledAt: null,
+        waitlistPosition: null,
+        team: null,
+        user: { id: 'u7', name: 'Ravi Kumar', email: 'ravi@college.test' },
+      },
+    ],
+    page: { total: 1, limit: 100, offset: 0 },
+  };
+
+  it('records leaving with a reason', async () => {
+    const { calls } = mockFetch({
+      ...base(),
+      'GET /api/events/e1/registrations?status=registered&limit=100': () => json(200, people),
+      'POST /api/events/e1/check-outs/manual': () =>
+        out({ attendee: { id: 'u7', name: 'Ravi Kumar' }, method: 'manual' }),
+    });
+    renderApp('/events/e1/check-in');
+    await screen.findByRole('option', { name: /Ravi Kumar/ });
+    await userEvent.selectOptions(screen.getByLabelText('Person'), 'r7');
+    await userEvent.type(screen.getByLabelText('Reason'), 'Pass would not scan');
+    await userEvent.click(screen.getByRole('button', { name: 'Check out by hand' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Ravi Kumar is checked out by hand after 45 min.',
+    );
+    const post = calls.find((c) => c.key === 'POST /api/events/e1/check-outs/manual')!;
+    expect(JSON.parse(String(post.init?.body))).toEqual({
+      registrationId: 'r7',
+      reason: 'Pass would not scan',
+    });
+  });
+
+  it('asks for the person and a reason before sending anything', async () => {
+    const { calls } = mockFetch({
+      ...base(),
+      'GET /api/events/e1/registrations?status=registered&limit=100': () => json(200, people),
+    });
+    renderApp('/events/e1/check-in');
+    await userEvent.click(await screen.findByRole('button', { name: 'Check out by hand' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Choose the person and give a reason',
+    );
+    expect(calls.some((c) => c.key.includes('/check-outs/manual'))).toBe(false);
   });
 });

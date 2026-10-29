@@ -54,7 +54,7 @@ export function renderGatePass(
     width,
     align: 'center',
   });
-  doc.text('Show this QR code at the gate. Do not share it: it works once.', {
+  doc.text('Show this QR code when you arrive and again when you leave. Do not share it.', {
     width,
     align: 'center',
   });

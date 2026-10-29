@@ -53,13 +53,14 @@ export function MyPass({ registrationId }: { registrationId: string }) {
       )}
       {pass.checkedInAt && (
         <p>
-          <strong>You were checked in</strong> at {formatDateTime(pass.checkedInAt)}.
+          <strong>You were checked in</strong> at {formatDateTime(pass.checkedInAt)}
+          {pass.checkedOutAt ? `, and checked out at ${formatDateTime(pass.checkedOutAt)}` : ''}.
         </p>
       )}
       <img src={pass.qrImage} alt="Your check-in QR code" width={220} height={220} />
       <p className="muted">
-        Show this QR code at the gate. It works once, so please do not share it. Valid until{' '}
-        {formatDateTime(pass.expiresAt)}.
+        Show this QR code at the gate when you arrive and again when you leave. Please do not share
+        it. Valid until {formatDateTime(pass.expiresAt)}.
       </p>
       {pass.gatePassReady ? (
         <button onClick={() => void download()}>Download gate pass (PDF)</button>

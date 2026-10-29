@@ -10,6 +10,7 @@ export {
   registeredUserIds,
 } from './repository.js';
 export { registerCancelGuard, type CancelGuard } from './guards.js';
+export { registerWalkIn } from './service.js';
 export { GATE_PASS_JOB } from './jobs.js';
 export { findTeam as getTeamById } from './repository.js';
 export type { CancelReason, RegistrationRecord, RegistrationStatus, TeamRecord } from './types.js';
