@@ -348,7 +348,11 @@ describe('the organizer’s attendance settings', () => {
     for (const who of [org.organizer, org.admin, vol, org.faculty, org.hod]) {
       const res = await as(t, who).get(`/api/events/${ev}/attendance-settings`);
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ allowWalkIns: false, requireCheckOut: true });
+      expect(res.body.data).toEqual({
+        allowWalkIns: false,
+        requireCheckOut: true,
+        walkInsOverCapacity: false,
+      });
     }
     for (const who of [org.student, org.otherFaculty]) {
       expect((await as(t, who).get(`/api/events/${ev}/attendance-settings`)).status).toBe(403);
@@ -366,20 +370,23 @@ describe('the organizer’s attendance settings', () => {
     expect((await setSettings(org.organizer, ev, { allowWalkIns: true })).body.data).toEqual({
       allowWalkIns: true,
       requireCheckOut: true,
+      walkInsOverCapacity: false,
     });
     expect((await setSettings(org.admin, ev, { requireCheckOut: false })).body.data).toEqual({
       allowWalkIns: true,
       requireCheckOut: false,
+      walkInsOverCapacity: false,
     });
     expect((await as(t, vol).get(`/api/events/${ev}/attendance-settings`)).body.data).toEqual({
       allowWalkIns: true,
       requireCheckOut: false,
+      walkInsOverCapacity: false,
     });
     const logged = await audit('attendance.settings_changed');
     expect(logged).toHaveLength(2);
     expect(logged[1].metadata).toMatchObject({
-      before: { allowWalkIns: true, requireCheckOut: true },
-      after: { allowWalkIns: true, requireCheckOut: false },
+      before: { allowWalkIns: true, requireCheckOut: true, walkInsOverCapacity: false },
+      after: { allowWalkIns: true, requireCheckOut: false, walkInsOverCapacity: false },
     });
   });
 
@@ -388,6 +395,7 @@ describe('the organizer’s attendance settings', () => {
     for (const bad of [
       {},
       { allowWalkIns: 'yes' },
+      { walkInsOverCapacity: 1 },
       { other: true },
       { allowWalkIns: true, extra: 1 },
     ]) {
@@ -638,5 +646,123 @@ describe('live numbers and the attendance report', () => {
     await setSettings(org.organizer, ev, { requireCheckOut: false });
     expect((await attendanceReport(t.ctx.pool, ev)).every((r) => r.completed)).toBe(true);
     expect(await attendanceReport(t.ctx.pool, '11111111-1111-4111-8111-111111111111')).toEqual([]);
+  });
+});
+
+describe('walk-ins beyond the seat limit (the organizer’s choice)', () => {
+  const fullEvent = async () => {
+    const ev = await createPublishedEvent(t, org, { capacity: 2 });
+    const [a, b] = await students(t, 2);
+    await register(t, a!, ev);
+    await register(t, b!, ev);
+    await midEvent(ev);
+    return ev;
+  };
+
+  it('is off by default: a full event still refuses walk-ins', async () => {
+    const ev = await fullEvent();
+    await setSettings(org.organizer, ev, { allowWalkIns: true });
+    const [guest] = await students(t, 1);
+    const res = await walkIn(org.organizer, ev, guest!.user.email);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('EVENT_FULL');
+  });
+
+  it('lets walk-ins take seats beyond the capacity once the organizer allows it', async () => {
+    const ev = await fullEvent();
+    const changed = await setSettings(org.organizer, ev, {
+      allowWalkIns: true,
+      walkInsOverCapacity: true,
+    });
+    expect(changed.body.data).toEqual({
+      allowWalkIns: true,
+      requireCheckOut: true,
+      walkInsOverCapacity: true,
+    });
+    const [g1, g2, g3] = await students(t, 3);
+    for (const g of [g1!, g2!, g3!]) {
+      expect((await walkIn(org.organizer, ev, g.user.email)).status).toBe(201);
+    }
+    expect(await rowsOf(ev)).toHaveLength(3);
+    const sum = await as(t, org.student).get(`/api/events/${ev}/registration-summary`);
+    expect(sum.body.data).toMatchObject({ capacity: 2, registered: 5, seatsLeft: 0, full: true });
+    const reg = await audit('registration.created');
+    expect(reg.filter((r) => r.metadata.walkIn)[0].metadata).toMatchObject({
+      overCapacityAllowed: true,
+    });
+  });
+
+  it('does not open the event to ordinary registration: it stays full', async () => {
+    const ev = await fullEvent();
+    await sql(ev, '10 minutes', '2 hours'); // check-in is open and registration has not closed yet
+    await setSettings(org.organizer, ev, { allowWalkIns: true, walkInsOverCapacity: true });
+    const [g1, other] = await students(t, 2);
+    await walkIn(org.organizer, ev, g1!.user.email);
+    const res = await register(t, other!, ev);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('EVENT_FULL');
+  });
+
+  it('only matters while walk-ins are allowed', async () => {
+    const ev = await fullEvent();
+    await setSettings(org.organizer, ev, { walkInsOverCapacity: true }); // walk-ins themselves still off
+    const [guest] = await students(t, 1);
+    expect((await walkIn(org.organizer, ev, guest!.user.email)).body.error.code).toBe(
+      'WALK_INS_NOT_ALLOWED',
+    );
+  });
+
+  it('is changed by the organizer or an admin only', async () => {
+    const ev = await fullEvent();
+    const vol = await sessionFor(t);
+    await post(t, org.organizer, `/api/events/${ev}/volunteers`, { email: vol.user.email });
+    for (const who of [vol, org.faculty, org.student]) {
+      expect((await setSettings(who, ev, { walkInsOverCapacity: true })).status).toBe(403);
+    }
+    expect((await setSettings(org.admin, ev, { walkInsOverCapacity: true })).status).toBe(200);
+  });
+
+  it('is available to volunteers when the organizer allowed walk-ins, and not otherwise', async () => {
+    const ev = await fullEvent();
+    const vol = await sessionFor(t);
+    await post(t, org.organizer, `/api/events/${ev}/volunteers`, { email: vol.user.email });
+    const [g1, g2] = await students(t, 2);
+    expect((await walkIn(vol, ev, g1!.user.email)).body.error.code).toBe('WALK_INS_NOT_ALLOWED');
+    await setSettings(org.organizer, ev, { allowWalkIns: true, walkInsOverCapacity: true });
+    expect((await walkIn(vol, ev, g2!.user.email)).status).toBe(201);
+    await setSettings(org.organizer, ev, { allowWalkIns: false });
+    expect((await walkIn(vol, ev, g1!.user.email)).body.error.code).toBe('WALK_INS_NOT_ALLOWED');
+  });
+
+  it('does not free a seat for the waitlist while the event is over capacity', async () => {
+    const ev = await createPublishedEvent(t, org, { capacity: 1 });
+    const [holder, waiting] = await students(t, 2);
+    const held = await register(t, holder!, ev);
+    await post(t, waiting!, `/api/events/${ev}/registrations`, { waitlist: true });
+    await midEvent(ev);
+    await setSettings(org.organizer, ev, { allowWalkIns: true, walkInsOverCapacity: true });
+    const [guest] = await students(t, 1);
+    await walkIn(org.organizer, ev, guest!.user.email); // 2 registered, capacity 1
+    await sql(ev, '10 minutes', '2 hours'); // before the start, so the holder may cancel
+    expect((await post(t, holder!, `/api/registrations/${held.body.data.id}/cancel`)).status).toBe(
+      200,
+    );
+    // one registered (the walk-in) = capacity: the seat the holder gave up is not free, nobody is promoted
+    const status = await q('SELECT status FROM registrations WHERE user_id = $1', [
+      waiting!.user.id,
+    ]);
+    expect(status[0].status).toBe('waitlisted');
+  });
+
+  it('accepts every walk-in that arrives together when over capacity is allowed', async () => {
+    const ev = await fullEvent();
+    await setSettings(org.organizer, ev, { allowWalkIns: true, walkInsOverCapacity: true });
+    const guests = await students(t, 12);
+    const results = await Promise.all(guests.map((g) => walkIn(org.organizer, ev, g.user.email)));
+    expect(results.map((r) => r.status)).toEqual(Array(12).fill(201));
+    expect(await rowsOf(ev)).toHaveLength(12);
+    expect(
+      await q("SELECT 1 FROM registrations WHERE event_id = $1 AND status = 'registered'", [ev]),
+    ).toHaveLength(14);
   });
 });

@@ -159,12 +159,13 @@ async function takeSeat(
   event: EventRecord,
   userId: string,
   teamId: string | null,
+  opts: { ignoreCapacity?: boolean } = {},
 ): Promise<RegistrationRecord> {
   const existing = await repo.findByEventUser(db, event.id, userId);
   if (existing && existing.status !== 'cancelled') {
     throw alreadyRegistered(existing);
   }
-  await assertSeatFree(db, event);
+  if (!opts.ignoreCapacity) await assertSeatFree(db, event);
   if (existing) return repo.reactivate(db, existing.id, teamId);
   try {
     return await repo.insertRegistration(db, { eventId: event.id, userId, teamId });
@@ -316,8 +317,8 @@ async function promoteFromWaitlist(
 /**
  * Registers a person on the spot at the gate (a walk-in the organizer allowed). The caller holds the
  * event lock and has already checked the permission and the check-in window. Unlike a normal
- * registration it ignores the registration deadline, but the event must be published, individual,
- * and still have a seat: walk-ins do not exceed the capacity.
+ * registration it ignores the registration deadline, but the event must be published and individual.
+ * It needs a free seat unless the organizer allowed walk-ins beyond the capacity (`overCapacity`).
  */
 export async function registerWalkIn(
   tx: Executor,
@@ -325,6 +326,7 @@ export async function registerWalkIn(
   userId: string,
   actorId: string,
   meta: RequestMeta,
+  opts: { overCapacity?: boolean } = {},
 ): Promise<RegistrationRecord> {
   if (event.status !== 'published') {
     throw errors.conflict('REGISTRATION_CLOSED', 'Registration is not open for this event');
@@ -335,13 +337,18 @@ export async function registerWalkIn(
       'Walk-ins are only possible for individual events',
     );
   }
-  const reg = await takeSeat(tx, event, userId, null);
+  const reg = await takeSeat(tx, event, userId, null, { ignoreCapacity: opts.overCapacity });
   await recordAudit(tx, {
     actorId,
     action: 'registration.created',
     targetType: 'registration',
     targetId: reg.id,
-    metadata: { eventId: event.id, walkIn: true, registeredUserId: userId },
+    metadata: {
+      eventId: event.id,
+      walkIn: true,
+      registeredUserId: userId,
+      ...(opts.overCapacity ? { overCapacityAllowed: true } : {}),
+    },
     ...meta,
   });
   return reg;

@@ -201,7 +201,13 @@ export function CheckIn() {
       </form>
 
       {summary?.settings.allowWalkIns && (
-        <WalkIn eventId={id} disabled={!summary.open} onDone={refresh} setOutcome={setOutcome} />
+        <WalkIn
+          eventId={id}
+          disabled={!summary.open}
+          overCapacity={summary.settings.walkInsOverCapacity}
+          onDone={refresh}
+          setOutcome={setOutcome}
+        />
       )}
 
       {outcome &&
@@ -267,11 +273,13 @@ export function CheckIn() {
 function WalkIn({
   eventId,
   disabled,
+  overCapacity,
   onDone,
   setOutcome,
 }: {
   eventId: string;
   disabled: boolean;
+  overCapacity: boolean;
   onDone: () => Promise<void>;
   setOutcome: (o: Outcome) => void;
 }) {
@@ -299,8 +307,10 @@ function WalkIn({
     <>
       <h2>Walk-in</h2>
       <p className="muted">
-        For someone without a registration. They need an account; they take a seat, so a full event
-        refuses them.
+        For someone without a registration. They need an account and they take a seat.{' '}
+        {overCapacity
+          ? 'The organizer allowed walk-ins beyond the seat limit.'
+          : 'A full event refuses them.'}
       </p>
       <form onSubmit={(e) => void submit(e)}>
         <label>
@@ -352,6 +362,17 @@ function Settings({
             onChange={(e) => void change({ allowWalkIns: e.target.checked })}
           />
           Allow walk-ins (people without a registration)
+        </label>
+      </p>
+      <p>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.walkInsOverCapacity}
+            disabled={!settings.allowWalkIns}
+            onChange={(e) => void change({ walkInsOverCapacity: e.target.checked })}
+          />
+          Let walk-ins take seats beyond the seat limit
         </label>
       </p>
       <p>

@@ -239,19 +239,26 @@ export async function insertGatePass(
 export interface AttendanceSettings {
   allowWalkIns: boolean;
   requireCheckOut: boolean;
+  /** Walk-ins may take seats beyond the event's capacity. Only meaningful when walk-ins are allowed. */
+  walkInsOverCapacity: boolean;
 }
 
-export const DEFAULT_SETTINGS: AttendanceSettings = { allowWalkIns: false, requireCheckOut: true };
+export const DEFAULT_SETTINGS: AttendanceSettings = {
+  allowWalkIns: false,
+  requireCheckOut: true,
+  walkInsOverCapacity: false,
+};
 
 export async function getSettings(db: Executor, eventId: string): Promise<AttendanceSettings> {
   const { rows } = await db.query(
-    'SELECT allow_walk_ins, require_check_out FROM event_attendance_settings WHERE event_id = $1',
+    'SELECT allow_walk_ins, require_check_out, walk_ins_over_capacity FROM event_attendance_settings WHERE event_id = $1',
     [eventId],
   );
   return rows[0]
     ? {
         allowWalkIns: rows[0].allow_walk_ins as boolean,
         requireCheckOut: rows[0].require_check_out as boolean,
+        walkInsOverCapacity: rows[0].walk_ins_over_capacity as boolean,
       }
     : DEFAULT_SETTINGS;
 }
@@ -263,10 +270,12 @@ export async function saveSettings(
   updatedBy: string,
 ): Promise<void> {
   await db.query(
-    `INSERT INTO event_attendance_settings (event_id, allow_walk_ins, require_check_out, updated_by)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO event_attendance_settings
+       (event_id, allow_walk_ins, require_check_out, walk_ins_over_capacity, updated_by)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (event_id) DO UPDATE
-       SET allow_walk_ins = $2, require_check_out = $3, updated_by = $4, updated_at = now()`,
-    [eventId, s.allowWalkIns, s.requireCheckOut, updatedBy],
+       SET allow_walk_ins = $2, require_check_out = $3, walk_ins_over_capacity = $4,
+           updated_by = $5, updated_at = now()`,
+    [eventId, s.allowWalkIns, s.requireCheckOut, s.walkInsOverCapacity, updatedBy],
   );
 }

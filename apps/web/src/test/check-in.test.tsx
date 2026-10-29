@@ -41,7 +41,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
   opensAt: '2031-03-01T02:30:00.000Z',
   closesAt: '2031-03-01T06:30:00.000Z',
   checkOutClosesAt: '2031-03-01T07:30:00.000Z',
-  settings: { allowWalkIns: false, requireCheckOut: true },
+  settings: { allowWalkIns: false, requireCheckOut: true, walkInsOverCapacity: false },
   ...over,
 });
 const row = (over: Record<string, unknown> = {}) => ({
@@ -517,7 +517,10 @@ describe('leaving (check-out)', () => {
 
 describe('walk-ins', () => {
   const allowed = (s = summary()) =>
-    summary({ ...s, settings: { allowWalkIns: true, requireCheckOut: true } });
+    summary({
+      ...s,
+      settings: { allowWalkIns: true, requireCheckOut: true, walkInsOverCapacity: false },
+    });
 
   it('are not offered unless the organizer allowed them', async () => {
     mockFetch(base());
@@ -568,7 +571,7 @@ describe('walk-ins', () => {
 
 describe('the organizer’s settings', () => {
   it('shows the current choices and saves a change', async () => {
-    let settings = { allowWalkIns: false, requireCheckOut: true };
+    let settings = { allowWalkIns: false, requireCheckOut: true, walkInsOverCapacity: false };
     const { calls } = mockFetch({
       ...base(),
       [ATTENDANCE]: () => overview(summary({ settings })),
@@ -652,5 +655,51 @@ describe('checking out by hand', () => {
       'Choose the person and give a reason',
     );
     expect(calls.some((c) => c.key.includes('/check-outs/manual'))).toBe(false);
+  });
+});
+
+describe('walk-ins beyond the seat limit', () => {
+  const withSettings = (over: Record<string, boolean>) =>
+    summary({
+      settings: { allowWalkIns: true, requireCheckOut: true, walkInsOverCapacity: false, ...over },
+    });
+
+  it('tells the person at the gate whether a full event can still take walk-ins', async () => {
+    mockFetch(base(organizerUser, withSettings({})));
+    const first = renderApp('/events/e1/check-in');
+    expect(await screen.findByText(/A full event refuses them/)).toBeInTheDocument();
+    first.unmount();
+
+    mockFetch(base(organizerUser, withSettings({ walkInsOverCapacity: true })));
+    renderApp('/events/e1/check-in');
+    expect(await screen.findByText(/allowed walk-ins beyond the seat limit/)).toBeInTheDocument();
+  });
+
+  it('lets the organizer turn it on, but only while walk-ins are allowed', async () => {
+    let settings = { allowWalkIns: true, requireCheckOut: true, walkInsOverCapacity: false };
+    const { calls } = mockFetch({
+      ...base(),
+      [ATTENDANCE]: () => overview(summary({ settings })),
+      'PUT /api/events/e1/attendance-settings': () => {
+        settings = { ...settings, walkInsOverCapacity: true };
+        return json(200, { data: settings });
+      },
+    });
+    renderApp('/events/e1/check-in');
+    const over = await screen.findByLabelText(/beyond the seat limit/);
+    expect(over).toBeEnabled();
+    expect(over).not.toBeChecked();
+    await userEvent.click(over);
+    await waitFor(() => expect(screen.getByLabelText(/beyond the seat limit/)).toBeChecked());
+    const put = calls.find((c) => c.key === 'PUT /api/events/e1/attendance-settings')!;
+    expect(JSON.parse(String(put.init?.body))).toEqual({ walkInsOverCapacity: true });
+  });
+
+  it('is switched off and greyed out while walk-ins are not allowed', async () => {
+    mockFetch(base());
+    renderApp('/events/e1/check-in');
+    expect(
+      await screen.findByLabelText(/Let walk-ins take seats beyond the seat limit/),
+    ).toBeDisabled();
   });
 });
