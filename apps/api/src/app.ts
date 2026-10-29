@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { pinoHttp } from 'pino-http';
 import type { AppContext } from './context.js';
 import { createErrorHandler, notFoundHandler } from './platform/errors.js';
+import { adminRoutes } from './modules/admin/routes.js';
 import { approvalRoutes } from './modules/approvals/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { bookingRoutes } from './modules/bookings/routes.js';
@@ -58,6 +59,7 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api/health', healthRoutes(ctx));
   app.use('/api/auth', authRoutes(ctx));
   app.use('/api/users', userRoutes(ctx));
+  app.use('/api/admin', adminRoutes(ctx));
   app.use('/api/departments', departmentRoutes(ctx));
   app.use('/api/calendar', calendarRoutes(ctx));
   app.use('/api/events', eventRoutes(ctx));
