@@ -486,8 +486,12 @@ async function createBookingOnce(
 
   try {
     const out = await withTx(ctx.pool, async (tx) => {
-      // FOR SHARE keeps the hall from being deactivated between this check and the insert.
-      const hall = await hallsRepo.getById(tx, input.hallId, 'share');
+      // Locking the hall row exclusively keeps it from being deactivated between this check and the
+      // insert, and makes everyone who writes a booking for this hall go one after another. Without
+      // that, two overlapping inserts can each wait for the other's uncommitted row and deadlock
+      // (under load some requests ran out of retries). The exclusion constraint below is still the
+      // guard against a double booking; this only removes the deadlocks.
+      const hall = await hallsRepo.getById(tx, input.hallId, 'update');
       if (!hall) throw errors.validation([{ path: 'hallId', message: 'Hall does not exist' }]);
       if (!hall.isActive)
         throw errors.conflict('HALL_INACTIVE', 'This hall is not available for new bookings');
@@ -610,7 +614,7 @@ async function updateBookingOnce(
         next.requiredFacilities.join('|') !== booking.requiredFacilities.join('|');
       if (scheduleChanged) validateRange(next.startAt, next.endAt);
 
-      const hall = await hallsRepo.getById(tx, next.hallId, 'share');
+      const hall = await hallsRepo.getById(tx, next.hallId, 'update'); // same reason as when creating
       if (!hall) throw errors.validation([{ path: 'hallId', message: 'Hall does not exist' }]);
       if (scheduleChanged && !hall.isActive)
         throw errors.conflict('HALL_INACTIVE', 'This hall is not available for new bookings');

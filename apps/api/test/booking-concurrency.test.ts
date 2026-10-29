@@ -13,6 +13,8 @@ import {
 
 // These tests run real simultaneous HTTP requests against the real PostgreSQL test database.
 // They are the proof that the hall-booking guarantee holds under concurrency.
+// Many simultaneous requests with real password hashing: about 7 s here, several times slower on a shared CI runner.
+// A timed-out test leaves requests running into the next test's reset, so the limit must not be tight.
 vi.setConfig({ testTimeout: 90_000, hookTimeout: 60_000 });
 const t = buildTestApp();
 let org: Org;
