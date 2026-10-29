@@ -38,6 +38,7 @@ export const AUDIT_ACTIONS = [
   'booking.approval_granted',
   'booking.approval_rejected',
   'booking.cancelled',
+  'job.retried',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

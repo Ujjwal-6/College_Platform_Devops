@@ -11,7 +11,7 @@ server-side RBAC, audit log, DB-backed job queue + worker, notification and file
 blocks, Docker/Compose/CI definitions, and Event Management & Approvals (events, Faculty → HOD → Admin
 approvals, academic calendar guard; contract in `docs/event-contract.md`). Registration,
 attendance, certificates and reports are not built yet. Hall booking and resource management are built
-(`docs/booking-design.md`).
+(`docs/booking-design.md`). Admin screens for the audit-log search and failed background jobs exist (`/api/admin/*`).
 Inspect the tree before assuming anything exists. Update this section as it changes.
 
 ## Decision status
