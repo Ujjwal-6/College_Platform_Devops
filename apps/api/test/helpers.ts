@@ -35,6 +35,8 @@ export function testConfig(overrides: Record<string, string> = {}): Config {
     PASSWORD_HASH_MEMORY_KIB: '1024', // cheap hashing keeps tests fast; production default is 19456
     PASSWORD_HASH_TIME_COST: '1',
     LOGIN_RATE_LIMIT_MAX: '1000',
+    REGISTRATION_RATE_LIMIT_MAX: '1000',
+    INVITATION_CODE_RATE_LIMIT_MAX: '1000',
     STORAGE_DIR: storageDir,
     ...overrides,
   });

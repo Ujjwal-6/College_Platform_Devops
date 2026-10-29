@@ -70,6 +70,7 @@ isEligibleForRegistration(event, now); // true only if status === 'published' an
 
 - Capacity, duplicate registration and team rules are the registration feature's responsibility. The event provides the configuration: `capacity` (null = unlimited; **defined here as a limit on people, not teams**), `registration_mode` (`individual` | `team`), `team_size_min`/`team_size_max` (2–50, only for team events), `registration_deadline` (null = the start time).
 - `registration_mode`, team sizes and `capacity` are **material**: they cannot change while the event is approved or published without `revise`. Only `registration_deadline` can still be moved (earlier or later, never after the start).
+- **Implemented by the registration feature** (`docs/registration-design.md`): cancelling an event cancels its registrations and emails the registrants; `unpublish` and `revise` are refused (409 `EVENT_HAS_REGISTRATIONS`) while anyone is registered. The registration code locks the event row (`getEventById(tx, id, true)`) before counting seats, exactly as event actions do, so keep that lock order if you add another feature that counts under the event.
 - The `unpublish`, `revise` and `cancel` actions may be **vetoed** by a hook (for example, refuse to unpublish an event that already has registrations) and cancellation should notify registrants. Both belong in your hook.
 
 ## 6. What changes approval status
@@ -132,7 +133,7 @@ registerEventHook(async (tx, { event, previousStatus, action, actorId }) => {
 
 ## 11. Migration ranges
 
-Used: `010_events`, `011_event_approvals`, `012_calendar` (Member 1); `020_halls_resources`, `021_hall_bookings`, `022_resource_reservations` (Member 2). Member 1 reserves `010–019`. Proposed (D-16): Member 2 `020–029`, Member 3 `030–039`. The migration runner refuses a file that sorts before one already applied locally, so after pulling a lower-numbered migration, rebuild your local database (`npm run migrate -- down <n>` then `npm run migrate`).
+Used: `010_events`, `011_event_approvals`, `012_calendar` (Member 1); `020_halls_resources`, `021_hall_bookings`, `022_resource_reservations` (Member 2); `030_registrations`, `031_idempotency` (Member 3's range). Member 1 reserves `010–019`. Proposed (D-16): Member 2 `020–029`, Member 3 `030–039`. The migration runner refuses a file that sorts before one already applied locally, so after pulling a lower-numbered migration, rebuild your local database (`npm run migrate -- down <n>` then `npm run migrate`).
 
 ## 12. Test helpers you can reuse
 

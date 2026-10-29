@@ -67,6 +67,9 @@ describe('migration history', () => {
         'booking_approvals',
         'booking_history',
         'resource_reservations',
+        'teams',
+        'registrations',
+        'idempotency_keys',
       ]) {
         expect(upTables).toContain(table);
       }
@@ -76,7 +79,12 @@ describe('migration history', () => {
       const constraint = await check.query(
         "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'hall_bookings_no_overlap'",
       );
+      const once = await check.query(
+        "SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = 'registrations_event_user_key'",
+      );
       await check.end();
+      // one registration per person per event is enforced by the database
+      expect(once.rows[0]?.def).toBe('UNIQUE (event_id, user_id)');
       expect(constraint.rows[0]?.def).toMatch(
         /EXCLUDE USING gist \(hall_id WITH =, tstzrange\(start_at, end_at, '\[\)'::text\) WITH &&\) WHERE/,
       );

@@ -88,6 +88,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 - AC-3.4 A team cannot exceed the maximum size under concurrent joins.
 - AC-3.5 Repeating a request with the same `Idempotency-Key` returns the original result and creates one registration.
 
+> **As built (2026-10-27):** individual and team registration, invitation codes (random, hashed, expiring, revocable, reusable until the team is full), cancellation that frees the seat, `Idempotency-Key`, rate limits, event-cancel integration. AC-3.1 to AC-3.5 are implemented and tested (`registrations.test.ts`, `registration-concurrency.test.ts`). FR-3.6 (waitlist) is built for individual events (first come first served, automatic promotion, W-1 to W-6). Many rules were assumed while the product owner was away and most are now confirmed: `docs/decisions.md` section 10; design and limits: `docs/registration-design.md`.
+
 ## 4. Hall booking, availability, conflict detection, concurrency safety — R1 [P]
 
 > **As built (2026-10-23):** halls, availability search, booking with its own Faculty → (HOD or Admin) approval, warnings the organizer acknowledges (capacity, facilities, calendar, event time), database-enforced no-overlap (exclusion constraint), automatic cancellation with the event. FR-4.5 is met as an advisory warning; AC-4.5 ("a failed calendar guard creates no booking") is replaced by "calendar overlaps need acknowledgement". Details and limits: `docs/booking-design.md`.

@@ -16,6 +16,12 @@ import { departmentRoutes } from './modules/departments/routes.js';
 import { eventRoutes } from './modules/events/routes.js';
 import { hallRoutes } from './modules/halls/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
+import {
+  eventRegistrationRoutes,
+  myRegistrationRoutes,
+  teamRoutes,
+} from './modules/registrations/routes.js';
+import { registerRegistrationHooks } from './modules/registrations/hooks.js';
 import { reservationRoutes, resourceRoutes } from './modules/resources/routes.js';
 import { userRoutes } from './modules/users/routes.js';
 
@@ -64,6 +70,9 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api/calendar', calendarRoutes(ctx));
   app.use('/api/events', eventRoutes(ctx));
   app.use('/api/events', approvalRoutes(ctx));
+  app.use('/api/events', eventRegistrationRoutes(ctx));
+  app.use('/api/teams', teamRoutes(ctx));
+  app.use('/api/registrations', myRegistrationRoutes(ctx));
   app.use('/api/halls', hallRoutes(ctx));
   app.use('/api/bookings', bookingRoutes(ctx));
   app.use('/api/resources', resourceRoutes(ctx));
@@ -71,6 +80,7 @@ export function createApp(ctx: AppContext): Express {
 
   // Connect other features to the event lifecycle (one line per feature; see docs/event-contract.md).
   registerBookingHooks(ctx);
+  registerRegistrationHooks(ctx);
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));

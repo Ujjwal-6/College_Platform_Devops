@@ -160,3 +160,39 @@ Edited-in-place note: migration `011_event_approvals.sql` was corrected before i
 | H-8 | Concurrency: hall bookings use a PostgreSQL **exclusion constraint** (`btree_gist`); resources use a **row lock plus peak-usage check**; deadlock victims are retried. See `docs/booking-design.md` | Engineer's decision, documented |
 | H-9 | Migration numbers used by Member 2: `020_halls_resources`, `021_hall_bookings`, `022_resource_reservations` (range `020–029`, as agreed in D-16) | Done |
 | H-10 | Hall administration is admin-only; no new role. No hall closure windows (the calendar is advisory, so an inactive hall is the only hard block) | Engineer's decision, documented |
+
+## 10. Registration: decisions and assumptions (2026-10-27)
+
+The product owner asked for registration to be built end to end with the questions asked afterwards, then answered them the same day (answers recorded in the Status column). Rows still marked **Assumed** were chosen by the engineer and were not discussed. Details and reasons: `docs/registration-design.md` section 2.
+
+| ID | Assumption | Status |
+|---|---|---|
+| R-1 | Any signed-in active user of any role (including the event's organizer) may register for a published event | **Unclear answer, still open:** the product owner replied "register for what, if for an event then only organizer", which may have meant creating events rather than registering as an attendee. Built as written until clarified |
+| R-2 | Registration is open while the event is published and before its deadline (default: start time) | Assumed (follows `isEligibleForRegistration`) |
+| R-3 | Capacity counts people; every team member, leader included, takes a seat | Assumed (matches the event contract) |
+| R-4 | Team flow: a leader creates a named team and takes a seat; others join by code; one registration per person per event | Assumed (FR-3.2, FR-3.4) |
+| R-5 | Invitation codes: 80-bit random, shown once, stored hashed, reusable until the team is full, expired or turned off; the leader may renew or turn off | **Confirmed:** reusable (U-9). The 7-day lifetime (R-6) was not discussed |
+| R-6 | Code lifetime: 7 days or until registration closes | Assumed |
+| R-7 | Only the registrant cancels, until the event starts; registering again afterwards is allowed. The leader cannot remove a member and the organizer cannot cancel someone's registration | **Confirmed** ("no, cannot") |
+| R-8 | Leader leaves: leadership passes to the longest-standing member; an empty team is dissolved | Assumed |
+| R-9 | A team below the minimum size is flagged, never removed or blocked | **Confirmed** ("just flag it") |
+| R-10 | Organizer, department faculty/HOD and admins see registrant names and emails; others see counts only | **Confirmed** |
+| R-11 | Event cancelled: registrations cancelled, teams dissolved, people emailed. Unpublish and revise are refused while anyone is registered | **Confirmed** |
+| R-12 | `Idempotency-Key` header on register, create team and join; kept 24 hours; failures not stored | Assumed (AC-3.5, G5) |
+| R-13 | Rate limits per person: 60 registration writes and 20 code attempts per 15 minutes | Assumed (AC-13.3) |
+| R-14 | ~~No waitlist~~ | **Replaced:** the product owner wants a waitlist (W-1 to W-6 below) |
+| R-15 | One confirmation email per registration and one notice on event cancellation; no reminders, no email to the leader when someone joins | **Confirmed** ("no need"). The promotion email (W-4) is added by the waitlist |
+| D-17 | Migrations `030_registrations`, `031_idempotency` (range `030–039`, D-16). A generic `Idempotency-Key` helper now exists in `platform/idempotency.ts` for any retryable endpoint (hall bookings still use natural idempotency, H-7) | Done |
+
+### Waitlist (requested 2026-10-27; the details are assumptions)
+
+| ID | Decision | Status |
+|---|---|---|
+| W-1 | **Individual events only.** A full team event stays full (a team cannot be split across a queue); the screen offers no waitlist there | Assumed |
+| W-2 | A person **chooses** to queue (`waitlist: true`, "Join the waitlist" button) when the event is full; they are never queued silently. If a seat is free, asking for the waitlist simply registers them | Assumed |
+| W-3 | **First come, first served**, by the real moment of joining. A waiting person has no seat and does not count against capacity; they may leave the queue; coming back puts them at the back | Assumed |
+| W-4 | When a registered person cancels, the **first person waiting is registered automatically** in the same step and emailed ("A seat opened up"). Nobody can jump the queue: a freed seat is never visible as free while someone waits | Assumed |
+| W-5 | Nobody is promoted once registration has closed (deadline passed); the seat then stays empty | Assumed |
+| W-6 | When the event is cancelled, waiting people are cancelled and emailed like registered ones. Staff see the waiting list with places; everyone sees only how many are waiting | Assumed |
+| D-18 | Migration `032_waitlist` (new status `waitlisted`, `waitlisted_at`, a check that waiting rows have no team) | Done |
+

@@ -145,6 +145,16 @@ export async function listActiveByRole(
   return rows as UserContact[];
 }
 
+/** Name and email for a set of users (to address notifications). */
+export async function getContacts(db: Executor, ids: string[]): Promise<UserContact[]> {
+  if (ids.length === 0) return [];
+  const { rows } = await db.query(
+    'SELECT id, email, name FROM users WHERE id = ANY($1::uuid[]) ORDER BY name, id',
+    [ids],
+  );
+  return rows as UserContact[];
+}
+
 export async function getNames(db: Executor, ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
   const { rows } = await db.query('SELECT id, name FROM users WHERE id = ANY($1::uuid[])', [ids]);

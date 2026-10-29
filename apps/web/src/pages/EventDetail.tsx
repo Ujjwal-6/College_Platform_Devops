@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { EventDetail as Detail } from '../api/types';
 import { EventBookings } from '../components/EventBookings';
+import { EventRegistration } from '../components/EventRegistration';
 import { levelLabel, StatusBadge } from '../components/StatusBadge';
 import { formatDate, formatDateTime } from '../lib/datetime';
 
@@ -334,6 +335,7 @@ export function EventDetailPage() {
           </ol>
         </>
       )}
+      <EventRegistration key={event.status} event={event} />
       {event.workflow && <EventBookings key={event.status} event={event} />}
     </article>
   );
