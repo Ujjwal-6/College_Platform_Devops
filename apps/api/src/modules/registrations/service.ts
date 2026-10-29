@@ -14,6 +14,9 @@ import {
   type EventRecord,
 } from '../events/index.js';
 import { notify } from '../notifications/notify.js';
+import { enqueue } from '../../platform/jobs/queue.js';
+import { runCancelGuards } from './guards.js';
+import { GATE_PASS_JOB } from './jobs.js';
 import * as usersRepo from '../users/repository.js';
 import { generateInvitationCode, hashInvitationCode, normalizeInvitationCode } from './codes.js';
 import * as repo from './repository.js';
@@ -205,6 +208,16 @@ async function notifyConfirmed(
     // A new key per registration period, so registering again after cancelling emails again.
     key: `registration:${reg.id}:confirmed:${reg.registeredAt.getTime()}`,
   });
+  await queueGatePass(tx, reg.id);
+}
+
+/** Asks the worker for the registration's gate pass (once per registration: the key is the registration). */
+async function queueGatePass(tx: Executor, registrationId: string): Promise<void> {
+  await enqueue(tx, {
+    type: GATE_PASS_JOB,
+    payload: { registrationId },
+    key: `gate-pass:${registrationId}`,
+  });
 }
 
 const run = <T>(ctx: AppContext, fn: (tx: PoolClient) => Promise<T>) =>
@@ -296,7 +309,42 @@ async function promoteFromWaitlist(
         key: `registration:${promoted.id}:promoted:${promoted.registeredAt.getTime()}`,
       });
     }
+    await queueGatePass(tx, promoted.id);
   }
+}
+
+/**
+ * Registers a person on the spot at the gate (a walk-in the organizer allowed). The caller holds the
+ * event lock and has already checked the permission and the check-in window. Unlike a normal
+ * registration it ignores the registration deadline, but the event must be published, individual,
+ * and still have a seat: walk-ins do not exceed the capacity.
+ */
+export async function registerWalkIn(
+  tx: Executor,
+  event: EventRecord,
+  userId: string,
+  actorId: string,
+  meta: RequestMeta,
+): Promise<RegistrationRecord> {
+  if (event.status !== 'published') {
+    throw errors.conflict('REGISTRATION_CLOSED', 'Registration is not open for this event');
+  }
+  if (event.registrationMode !== 'individual') {
+    throw errors.conflict(
+      'WALK_IN_NOT_AVAILABLE',
+      'Walk-ins are only possible for individual events',
+    );
+  }
+  const reg = await takeSeat(tx, event, userId, null);
+  await recordAudit(tx, {
+    actorId,
+    action: 'registration.created',
+    targetType: 'registration',
+    targetId: reg.id,
+    metadata: { eventId: event.id, walkIn: true, registeredUserId: userId },
+    ...meta,
+  });
+  return reg;
 }
 
 // ---- teams ---------------------------------------------------------------------------------------
@@ -582,6 +630,7 @@ export async function cancelRegistration(
         'The event has started, so the registration can no longer be cancelled',
       );
     }
+    await runCancelGuards(tx, reg);
     const cancelled = await repo.markCancelled(tx, reg.id, 'self');
     await recordAudit(tx, {
       actorId: user.id,

@@ -70,6 +70,10 @@ describe('migration history', () => {
         'teams',
         'registrations',
         'idempotency_keys',
+        'attendance',
+        'event_volunteers',
+        'gate_passes',
+        'event_attendance_settings',
       ]) {
         expect(upTables).toContain(table);
       }

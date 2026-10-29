@@ -65,7 +65,7 @@ Decide by available student credits and team familiarity. R1 is cloud-agnostic (
 
 ### D-09 Email provider — **OPEN**, recommend Mailpit in development and SMTP via a provider chosen with D-07 (SES/Azure Communication Services/Brevo etc.).
 
-### D-10 PDF library — **OPEN**, recommend `pdfkit` (light, no browser). Puppeteer/HTML-to-PDF only if the report template (U-7) proves too complex; it adds a headless browser to the worker image.
+### D-10 PDF library — **Approved: `pdfkit`** (2026-10-27, product owner). Light, no browser, runs in the worker. Puppeteer/HTML-to-PDF stays an option only if the report template (U-7) proves too complex; it adds a headless browser to the worker image.
 
 ### D-11 Frontend stack details — **OPEN**, recommend Vite + React Router + TanStack Query + a component library chosen by the frontend owner.
 
@@ -167,7 +167,7 @@ The product owner asked for registration to be built end to end with the questio
 
 | ID | Assumption | Status |
 |---|---|---|
-| R-1 | Any signed-in active user of any role (including the event's organizer) may register for a published event | **Unclear answer, still open:** the product owner replied "register for what, if for an event then only organizer", which may have meant creating events rather than registering as an attendee. Built as written until clarified |
+| R-1 | Any signed-in active user of any role (including the event's organizer) may register for a published event | **Confirmed** (2026-10-27: "yes" to keeping it open to any signed-in user). An earlier reply was unclear; this settles it |
 | R-2 | Registration is open while the event is published and before its deadline (default: start time) | Assumed (follows `isEligibleForRegistration`) |
 | R-3 | Capacity counts people; every team member, leader included, takes a seat | Assumed (matches the event contract) |
 | R-4 | Team flow: a leader creates a named team and takes a seat; others join by code; one registration per person per event | Assumed (FR-3.2, FR-3.4) |
@@ -196,3 +196,24 @@ The product owner asked for registration to be built end to end with the questio
 | W-6 | When the event is cancelled, waiting people are cancelled and emailed like registered ones. Staff see the waiting list with places; everyone sees only how many are waiting | Assumed |
 | D-18 | Migration `032_waitlist` (new status `waitlisted`, `waitlisted_at`, a check that waiting rows have no team) | Done |
 
+## 11. Attendance (QR check-in and gate passes): decisions and assumptions (2026-10-27)
+
+| ID | Decision | Status |
+|---|---|---|
+| D-10 | PDF library: `pdfkit` | **Approved** by the product owner |
+| D-19 | QR codes: `qrcode` draws them (server, for the screen and the PDF), `jsqr` reads them from the camera in the browser (works on every phone) | **Approved** by the product owner |
+| D-20 | Migration `033_attendance` (attendance, event volunteers, gate passes), inside Member 3's range | Done |
+| ATT-1 | Scanning: the organizer, admins and volunteers the organizer assigns per event (by account email); faculty/HOD see counts only (U-8 default) | Assumed. The product owner answered "attendance is for the attendees", read as: the people checked in are the registered attendees; **not certain this was the intended meaning** |
+| ATT-2 | Manual check-in: organizer and admins only, reason required and logged | Assumed (FR-7.4) |
+| ATT-3 | Check-in window: **15 minutes** before the start until the event ends, for published events | **Changed by the product owner** ("scanning can start 15 min before") |
+| ATT-4 | Each confirmed registration (each team member too) has its own signed single-use QR pass, valid until the event ends | Assumed (FR-7.1) |
+| ATT-5 | One check-in per person, no undo; a checked-in person can no longer cancel their registration | **Confirmed:** no undo needed for now |
+| ATT-6 | Gate-pass PDF made by the worker; the person gets an email with a link (not an attachment) and downloads it signed in; venue = confirmed hall booking, else "To be announced" | Assumed (FR-7.3). Asked "what pdf?": it is the printable ticket with the QR code; kept as an emailed link, not an attachment |
+| ATT-7 | The PDF uses standard fonts: names in non-Latin scripts are not drawn correctly | **Confirmed:** English only is fine |
+| ATT-8 | No offline scanning (out of R1 scope). ~~No exit tracking, no walk-ins~~ | **Replaced** by ATT-11 to ATT-13 at the product owner's request |
+| ATT-9 | "Attended" means "was checked in"; what earns a certificate is decided in feature 8 (U-6) | Assumed |
+| ATT-10 | QR signing key: `QR_SIGNING_SECRET` if set, otherwise derived from `JWT_SECRET` | Engineer's decision |
+| ATT-11 | **Check-out:** people are scanned again when leaving, so nobody can arrive and leave without attending. Leaving up to 15 minutes before the end counts as staying to the end; the organizer decides per event whether check-out is required (default: yes) | Requested by the product owner; the 15-minute allowance and the default are assumed |
+| ATT-12 | Check-out window: from when check-in opens until one hour after the end; a by-hand check-out (organizer/admin, with a reason) exists | Assumed |
+| ATT-13 | **Walk-ins** when the organizer turns them on per event (default off): scanners enter the person's account email; they are registered and checked in at once, take a seat (a full event refuses them), individual events only | Allowed by the product owner "in certain cases if the organizer allows it"; the details (seat, account needed, individual only) are assumed |
+| D-21 | Migration `034_attendance_checkout` (check-out columns, `walk_in` method, per-event settings) | Done |
