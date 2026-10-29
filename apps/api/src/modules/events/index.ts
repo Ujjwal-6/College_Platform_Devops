@@ -11,7 +11,11 @@ export {
   MATERIAL_FIELDS,
   TRANSITIONS,
 } from './lifecycle.js';
-export { getById as getEventById, getSpeakers as getEventSpeakers } from './repository.js';
+export {
+  getById as getEventById,
+  getSpeakers as getEventSpeakers,
+  list as listEvents,
+} from './repository.js';
 export { APPROVAL_LEVELS, EVENT_STATUSES } from './types.js';
 export type {
   ApprovalLevel,

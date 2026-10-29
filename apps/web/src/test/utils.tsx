@@ -47,6 +47,17 @@ function defaultHandler(key: string): (() => Promise<Response>) | undefined {
           mine: null,
         },
       });
+  if (/^GET \/api\/registrations\/[^/?]+\/qr$/.test(key))
+    return () =>
+      json(200, {
+        data: {
+          token: 'EQ1.payload.signature',
+          expiresAt: '2031-03-01T06:30:00.000Z',
+          qrImage: 'data:image/png;base64,AAAA',
+          gatePassReady: true,
+          checkedInAt: null,
+        },
+      });
   if (key.includes('/registrations?status=registered'))
     return () => json(200, { data: [], page: { total: 0, limit: 100, offset: 0 } });
   return undefined;

@@ -8,6 +8,8 @@ import { BookingDetailPage } from './pages/BookingDetail';
 import { BookingForm } from './pages/BookingForm';
 import { Bookings } from './pages/Bookings';
 import { Calendar } from './pages/Calendar';
+import { CheckIn } from './pages/CheckIn';
+import { CheckInEvents } from './pages/CheckInEvents';
 import { Dashboard } from './pages/Dashboard';
 import { EventDetailPage } from './pages/EventDetail';
 import { EventForm } from './pages/EventForm';
@@ -33,6 +35,7 @@ export function App() {
               <Link to="/bookings">Bookings</Link>
             )}
             <Link to="/my-registrations">My registrations</Link>
+            <Link to="/check-in">Check-in</Link>
             <Link to="/calendar">Calendar</Link>
             {hasRole('admin', 'hod') && <Link to="/users">Users</Link>}
             {hasRole('admin') && <Link to="/admin/audit">Audit log</Link>}
@@ -74,6 +77,22 @@ export function App() {
           element={
             <ProtectedRoute roles={['admin']}>
               <AdminJobs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/check-in"
+          element={
+            <ProtectedRoute>
+              <CheckInEvents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:id/check-in"
+          element={
+            <ProtectedRoute>
+              <CheckIn />
             </ProtectedRoute>
           }
         />

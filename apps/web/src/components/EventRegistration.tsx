@@ -7,7 +7,10 @@ import {
   type TeamView,
 } from '../api/registrationTypes';
 import type { EventDetail } from '../api/types';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { formatDateTime } from '../lib/datetime';
+import { MyPass } from './MyPass';
 
 interface ShownCode {
   code: string;
@@ -18,6 +21,8 @@ const PAGE = 100;
 
 /** Registration for one event: seats, register / team / join, the person's own status, and (for staff) who registered. */
 export function EventRegistration({ event }: { event: EventDetail }) {
+  const { user, hasRole } = useAuth();
+  const manager = event.organizerId === user?.id || hasRole('admin');
   const staff = event.workflow !== null; // the server only sends the workflow to the owner, admins and department staff
   const [summary, setSummary] = useState<RegistrationSummary | null>(null);
   const [team, setTeam] = useState<TeamView | null>(null);
@@ -124,6 +129,11 @@ export function EventRegistration({ event }: { event: EventDetail }) {
           ? ` · teams of ${event.teamSizeMin} to ${event.teamSizeMax}`
           : ''}
       </p>
+      {manager && event.status === 'published' && (
+        <p>
+          <Link to={`/events/${event.id}/check-in`}>Open check-in for this event</Link>
+        </p>
+      )}
       {!summary.open && !mine && !queued && <p className="muted">Registration is closed.</p>}
       {summary.open && summary.full && !mine && !queued && (
         <p className="muted">This event is full.</p>
@@ -162,27 +172,30 @@ export function EventRegistration({ event }: { event: EventDetail }) {
       )}
 
       {mine && (
-        <div className="notice">
-          <p>
-            <strong>You are registered</strong>
-            {mine.team ? ` as part of the team “${mine.team.name}”` : ''}.
-          </p>
-          {!started && (
-            <button
-              disabled={busy}
-              onClick={() =>
-                void act(async () => {
-                  await post(`/registrations/${mine.id}/cancel`);
-                  setShown(null);
-                })
-              }
-            >
-              {mine.team && mine.team.isLeader
-                ? 'Leave the team and cancel'
-                : 'Cancel registration'}
-            </button>
-          )}
-        </div>
+        <>
+          <div className="notice">
+            <p>
+              <strong>You are registered</strong>
+              {mine.team ? ` as part of the team “${mine.team.name}”` : ''}.
+            </p>
+            {!started && (
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void act(async () => {
+                    await post(`/registrations/${mine.id}/cancel`);
+                    setShown(null);
+                  })
+                }
+              >
+                {mine.team && mine.team.isLeader
+                  ? 'Leave the team and cancel'
+                  : 'Cancel registration'}
+              </button>
+            )}
+          </div>
+          <MyPass key={mine.id} registrationId={mine.id} />
+        </>
       )}
 
       {!mine && summary.open && !summary.full && event.registrationMode === 'individual' && (

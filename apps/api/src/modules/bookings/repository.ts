@@ -357,3 +357,14 @@ export async function historyFor(db: Executor, bookingId: string): Promise<Histo
     createdAt: r.created_at as Date,
   }));
 }
+
+/** Names of the halls with a confirmed booking for the event (for display, e.g. on a gate pass), or null. */
+export async function confirmedVenue(db: Executor, eventId: string): Promise<string | null> {
+  const { rows } = await db.query(
+    `SELECT string_agg(DISTINCT h.name, ', ' ORDER BY h.name) AS venue
+       FROM hall_bookings b JOIN halls h ON h.id = b.hall_id
+      WHERE b.event_id = $1 AND b.status = 'confirmed'`,
+    [eventId],
+  );
+  return (rows[0]?.venue as string | null) ?? null;
+}

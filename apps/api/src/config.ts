@@ -18,6 +18,12 @@ const schema = z.object({
       (v) => !/^(change[-_ ]?me|secret|password)/i.test(v),
       'JWT_SECRET looks like a placeholder',
     ),
+  // Signs the check-in codes on gate passes. Optional: when absent, a separate key is derived from
+  // JWT_SECRET, so the two uses never share the same raw key.
+  QR_SIGNING_SECRET: z
+    .string()
+    .min(32, 'QR_SIGNING_SECRET must be at least 32 characters')
+    .optional(),
   JWT_ISSUER: z.string().default('college-events'),
   JWT_AUDIENCE: z.string().default('college-events-web'),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).default(900),

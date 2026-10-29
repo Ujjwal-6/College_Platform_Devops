@@ -1,5 +1,6 @@
 import { buildContext } from './build-context.js';
 import { ConfigError, loadConfig, loadDotEnv } from './config.js';
+import { registerGatePassHandlers } from './modules/attendance/gatepass.js';
 import { registerNotificationHandlers } from './modules/notifications/notify.js';
 import { JobWorker } from './platform/jobs/worker.js';
 
@@ -22,6 +23,7 @@ const worker = new JobWorker({
 });
 // Features register their handlers here (certificates, gate passes, post-event reports, ...).
 registerNotificationHandlers(worker, ctx.mailer);
+registerGatePassHandlers(worker, ctx);
 
 worker.start();
 ctx.logger.info('job worker started');

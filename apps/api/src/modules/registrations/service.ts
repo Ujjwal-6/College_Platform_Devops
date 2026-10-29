@@ -14,6 +14,9 @@ import {
   type EventRecord,
 } from '../events/index.js';
 import { notify } from '../notifications/notify.js';
+import { enqueue } from '../../platform/jobs/queue.js';
+import { runCancelGuards } from './guards.js';
+import { GATE_PASS_JOB } from './jobs.js';
 import * as usersRepo from '../users/repository.js';
 import { generateInvitationCode, hashInvitationCode, normalizeInvitationCode } from './codes.js';
 import * as repo from './repository.js';
@@ -205,6 +208,16 @@ async function notifyConfirmed(
     // A new key per registration period, so registering again after cancelling emails again.
     key: `registration:${reg.id}:confirmed:${reg.registeredAt.getTime()}`,
   });
+  await queueGatePass(tx, reg.id);
+}
+
+/** Asks the worker for the registration's gate pass (once per registration: the key is the registration). */
+async function queueGatePass(tx: Executor, registrationId: string): Promise<void> {
+  await enqueue(tx, {
+    type: GATE_PASS_JOB,
+    payload: { registrationId },
+    key: `gate-pass:${registrationId}`,
+  });
 }
 
 const run = <T>(ctx: AppContext, fn: (tx: PoolClient) => Promise<T>) =>
@@ -296,6 +309,7 @@ async function promoteFromWaitlist(
         key: `registration:${promoted.id}:promoted:${promoted.registeredAt.getTime()}`,
       });
     }
+    await queueGatePass(tx, promoted.id);
   }
 }
 
@@ -582,6 +596,7 @@ export async function cancelRegistration(
         'The event has started, so the registration can no longer be cancelled',
       );
     }
+    await runCancelGuards(tx, reg);
     const cancelled = await repo.markCancelled(tx, reg.id, 'self');
     await recordAudit(tx, {
       actorId: user.id,

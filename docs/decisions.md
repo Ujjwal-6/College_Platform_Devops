@@ -65,7 +65,7 @@ Decide by available student credits and team familiarity. R1 is cloud-agnostic (
 
 ### D-09 Email provider — **OPEN**, recommend Mailpit in development and SMTP via a provider chosen with D-07 (SES/Azure Communication Services/Brevo etc.).
 
-### D-10 PDF library — **OPEN**, recommend `pdfkit` (light, no browser). Puppeteer/HTML-to-PDF only if the report template (U-7) proves too complex; it adds a headless browser to the worker image.
+### D-10 PDF library — **Approved: `pdfkit`** (2026-10-27, product owner). Light, no browser, runs in the worker. Puppeteer/HTML-to-PDF stays an option only if the report template (U-7) proves too complex; it adds a headless browser to the worker image.
 
 ### D-11 Frontend stack details — **OPEN**, recommend Vite + React Router + TanStack Query + a component library chosen by the frontend owner.
 
@@ -195,4 +195,22 @@ The product owner asked for registration to be built end to end with the questio
 | W-5 | Nobody is promoted once registration has closed (deadline passed); the seat then stays empty | Assumed |
 | W-6 | When the event is cancelled, waiting people are cancelled and emailed like registered ones. Staff see the waiting list with places; everyone sees only how many are waiting | Assumed |
 | D-18 | Migration `032_waitlist` (new status `waitlisted`, `waitlisted_at`, a check that waiting rows have no team) | Done |
+
+## 11. Attendance (QR check-in and gate passes): decisions and assumptions (2026-10-27)
+
+| ID | Decision | Status |
+|---|---|---|
+| D-10 | PDF library: `pdfkit` | **Approved** by the product owner |
+| D-19 | QR codes: `qrcode` draws them (server, for the screen and the PDF), `jsqr` reads them from the camera in the browser (works on every phone) | **Approved** by the product owner |
+| D-20 | Migration `033_attendance` (attendance, event volunteers, gate passes), inside Member 3's range | Done |
+| A-1 | Scanning: the organizer, admins and volunteers the organizer assigns per event (by account email); faculty/HOD see counts only (U-8 default) | Assumed |
+| A-2 | Manual check-in: organizer and admins only, reason required and logged | Assumed (FR-7.4) |
+| A-3 | Check-in window: two hours before the start until the event ends, for published events | Assumed |
+| A-4 | Each confirmed registration (each team member too) has its own signed single-use QR pass, valid until the event ends | Assumed (FR-7.1) |
+| A-5 | One check-in per person, no undo; a checked-in person can no longer cancel their registration | Assumed |
+| A-6 | Gate-pass PDF made by the worker; the person gets an email with a link (not an attachment) and downloads it signed in; venue = confirmed hall booking, else "To be announced" | Assumed (FR-7.3) |
+| A-7 | The PDF uses standard fonts: names in non-Latin scripts are not drawn correctly | Known limit, needs a decision |
+| A-8 | No offline scanning, no exit/re-entry tracking, no walk-ins without a registration | Assumed (offline is out of R1 scope) |
+| A-9 | "Attended" means "was checked in"; what earns a certificate is decided in feature 8 (U-6) | Assumed |
+| A-10 | QR signing key: `QR_SIGNING_SECRET` if set, otherwise derived from `JWT_SECRET` | Engineer's decision |
 
