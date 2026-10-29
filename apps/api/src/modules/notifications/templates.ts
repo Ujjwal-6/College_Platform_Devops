@@ -88,6 +88,49 @@ const templates = {
       text: `Hello ${d.name},\n\nYour event "${d.eventTitle}" was cancelled by ${d.cancelledBy}.\nReason: ${d.reason}\n\nDetails: ${d.url}\n`,
     }),
   },
+  'registration.confirmed': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      when: z.string(),
+      teamName: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      when: string;
+      teamName: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Registration confirmed: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\nYou are registered for "${d.eventTitle}" (${d.when}).${d.teamName ? `\nTeam: ${d.teamName}` : ''}\nDetails: ${d.url}\n`,
+    }),
+  },
+  'registration.promoted': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      when: z.string(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      when: string;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`A seat opened up: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\nA seat became free and you are now registered for "${d.eventTitle}" (${d.when}), moving up from the waitlist.\nIf you can no longer come, please cancel so the next person can have the seat.\nDetails: ${d.url}\n`,
+    }),
+  },
+  'registration.event_cancelled': {
+    data: z.object({ name: z.string(), eventTitle: z.string(), url: z.string() }),
+    render: (d: { name: string; eventTitle: string; url: string }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Event cancelled: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\nThe event "${d.eventTitle}" you registered for (or were waiting for) has been cancelled, so your registration is cancelled too.\nDetails: ${d.url}\n`,
+    }),
+  },
   'booking.approval_requested': {
     data: z.object({
       name: z.string(),

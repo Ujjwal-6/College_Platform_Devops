@@ -15,6 +15,7 @@ import { Events } from './pages/Events';
 import { Halls } from './pages/Halls';
 import { Resources } from './pages/Resources';
 import { Login } from './pages/Login';
+import { MyRegistrations } from './pages/MyRegistrations';
 
 export function App() {
   const { status, user, signOut, hasRole } = useAuth();
@@ -31,6 +32,7 @@ export function App() {
             {hasRole('organizer', 'faculty', 'hod', 'admin') && (
               <Link to="/bookings">Bookings</Link>
             )}
+            <Link to="/my-registrations">My registrations</Link>
             <Link to="/calendar">Calendar</Link>
             {hasRole('admin', 'hod') && <Link to="/users">Users</Link>}
             {hasRole('admin') && <Link to="/admin/audit">Audit log</Link>}
@@ -72,6 +74,14 @@ export function App() {
           element={
             <ProtectedRoute roles={['admin']}>
               <AdminJobs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-registrations"
+          element={
+            <ProtectedRoute>
+              <MyRegistrations />
             </ProtectedRoute>
           }
         />

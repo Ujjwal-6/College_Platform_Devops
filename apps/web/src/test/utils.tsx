@@ -33,6 +33,22 @@ function defaultHandler(key: string): (() => Promise<Response>) | undefined {
     return () => json(200, { data: [], page: { limit: 100, offset: 0, total: 0 } });
   if (key.startsWith('GET /api/resource-reservations?')) return () => json(200, { data: [] });
   if (key.startsWith('GET /api/resources/availability?')) return () => json(200, { data: [] });
+  if (/^GET \/api\/events\/[^/?]+\/registration-summary$/.test(key))
+    return () =>
+      json(200, {
+        data: {
+          eventId: 'e',
+          registrationMode: 'individual',
+          capacity: null,
+          registered: 0,
+          seatsLeft: null,
+          open: false,
+          full: false,
+          mine: null,
+        },
+      });
+  if (key.includes('/registrations?status=registered'))
+    return () => json(200, { data: [], page: { total: 0, limit: 100, offset: 0 } });
   return undefined;
 }
 
