@@ -35,6 +35,8 @@ export interface CheckOutResult {
 export interface AttendanceSettings {
   allowWalkIns: boolean;
   requireCheckOut: boolean;
+  /** Walk-ins may take seats beyond the seat limit. */
+  walkInsOverCapacity: boolean;
 }
 
 export interface AttendanceSummary {

@@ -41,12 +41,13 @@ export const walkInSchema = z
   .object({ email: z.string().trim().toLowerCase().email().max(254) })
   .strict();
 export const settingsSchema = z
-  .object({ allowWalkIns: z.boolean().optional(), requireCheckOut: z.boolean().optional() })
+  .object({
+    allowWalkIns: z.boolean().optional(),
+    requireCheckOut: z.boolean().optional(),
+    walkInsOverCapacity: z.boolean().optional(),
+  })
   .strict()
-  .refine(
-    (v) => v.allowWalkIns !== undefined || v.requireCheckOut !== undefined,
-    'Nothing to change',
-  );
+  .refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change');
 export const volunteerSchema = z
   .object({ email: z.string().trim().toLowerCase().email().max(254) })
   .strict();
@@ -278,7 +279,8 @@ export async function checkInWalkIn(
   return run(ctx, async (tx) => {
     const event = await loadEvent(tx, user, eventId, true);
     await assertScanner(tx, user, event);
-    if (!(await repo.getSettings(tx, event.id)).allowWalkIns) {
+    const settings = await repo.getSettings(tx, event.id);
+    if (!settings.allowWalkIns) {
       throw errors.conflict(
         'WALK_INS_NOT_ALLOWED',
         'The organizer has not allowed walk-ins for this event',
@@ -288,7 +290,9 @@ export async function checkInWalkIn(
 
     const person = await usersRepo.findContactByEmail(tx, input.email);
     if (!person || !person.isActive) throw errors.notFound('Active user with that email');
-    const reg = await registerWalkIn(tx, event, person.id, user.id, meta);
+    const reg = await registerWalkIn(tx, event, person.id, user.id, meta, {
+      overCapacity: settings.walkInsOverCapacity,
+    });
     const record = await repo.insertAttendance(tx, {
       registrationId: reg.id,
       eventId: event.id,
@@ -462,6 +466,7 @@ export async function updateSettings(
     const after = {
       allowWalkIns: input.allowWalkIns ?? before.allowWalkIns,
       requireCheckOut: input.requireCheckOut ?? before.requireCheckOut,
+      walkInsOverCapacity: input.walkInsOverCapacity ?? before.walkInsOverCapacity,
     };
     await repo.saveSettings(tx, eventId, after, user.id);
     await recordAudit(tx, {
