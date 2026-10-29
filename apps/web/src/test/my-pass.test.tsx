@@ -106,7 +106,7 @@ describe('my gate pass on the event page', () => {
       [QR]: () => pass(),
       'GET /api/registrations/r1/gate-pass': () =>
         Promise.resolve(
-          new Response(new Blob(['%PDF-1.3']), {
+          new Response('%PDF-1.3', {
             status: 200,
             headers: { 'Content-Type': 'application/pdf' },
           }),
