@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 import { pinoHttp } from 'pino-http';
 import type { AppContext } from './context.js';
+import { registerEventHooks } from './hooks.js';
+import { metricsHandler, requestMetrics } from './platform/metrics.js';
 import { createErrorHandler, notFoundHandler } from './platform/errors.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { analyticsRoutes, eventAnalyticsRoutes } from './modules/analytics/routes.js';
@@ -13,7 +15,6 @@ import { checkInRoutes, eventAttendanceRoutes, passRoutes } from './modules/atte
 import { authRoutes } from './modules/auth/routes.js';
 import { budgetRoutes } from './modules/budgets/routes.js';
 import { bookingRoutes } from './modules/bookings/routes.js';
-import { registerBookingHooks } from './modules/bookings/hooks.js';
 import { calendarRoutes } from './modules/calendar/routes.js';
 import { departmentRoutes } from './modules/departments/routes.js';
 import { eventRoutes } from './modules/events/routes.js';
@@ -24,15 +25,12 @@ import {
   myRegistrationRoutes,
   teamRoutes,
 } from './modules/registrations/routes.js';
-import { registerAttendanceGuards } from './modules/attendance/hooks.js';
 import {
   certificateRoutes,
   certificateTemplateRoutes,
   eventCertificateRoutes,
 } from './modules/certificates/routes.js';
 import { feedbackRoutes } from './modules/feedback/routes.js';
-import { registerRegistrationHooks } from './modules/registrations/hooks.js';
-import { registerReportHooks } from './modules/reports/hooks.js';
 import { eventReportRoutes, reportRoutes } from './modules/reports/routes.js';
 import { reservationRoutes, resourceRoutes } from './modules/resources/routes.js';
 import { userRoutes } from './modules/users/routes.js';
@@ -64,6 +62,7 @@ export function createApp(ctx: AppContext): Express {
       },
     }),
   );
+  app.use(requestMetrics);
   app.use(helmet());
   app.use(
     cors({
@@ -74,6 +73,7 @@ export function createApp(ctx: AppContext): Express {
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 
+  app.get('/metrics', metricsHandler(ctx.pool, config.METRICS_TOKEN));
   app.use('/api/health', healthRoutes(ctx));
   app.use('/api/auth', authRoutes(ctx));
   app.use('/api/users', userRoutes(ctx));
@@ -103,10 +103,7 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api/resource-reservations', reservationRoutes(ctx));
 
   // Connect other features to the event lifecycle (one line per feature; see docs/event-contract.md).
-  registerBookingHooks(ctx);
-  registerRegistrationHooks(ctx);
-  registerAttendanceGuards();
-  registerReportHooks();
+  registerEventHooks(ctx);
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));

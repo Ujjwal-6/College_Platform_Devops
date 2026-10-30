@@ -45,4 +45,21 @@ describe('loadConfig', () => {
       loadConfig({ ...valid, CORS_ORIGINS: 'http://a.test, http://b.test' }).CORS_ORIGINS,
     ).toEqual(['http://a.test', 'http://b.test']);
   });
+
+  it('treats an empty METRICS_TOKEN as "metrics off" and refuses a short one', () => {
+    expect(loadConfig({ ...valid, METRICS_TOKEN: '' }).METRICS_TOKEN).toBeUndefined();
+    expect(loadConfig(valid).METRICS_TOKEN).toBeUndefined();
+    expect(loadConfig({ ...valid, METRICS_TOKEN: 'a-token-of-16-chars' }).METRICS_TOKEN).toBe(
+      'a-token-of-16-chars',
+    );
+    expect(() => loadConfig({ ...valid, METRICS_TOKEN: 'short' })).toThrow(ConfigError);
+  });
+
+  it('has sensible defaults for automatic closing and password reset', () => {
+    const c = loadConfig(valid);
+    expect(c.EVENT_AUTO_CLOSE_HOURS).toBe(24);
+    expect(c.PASSWORD_RESET_TTL_MINUTES).toBe(60);
+    expect(c.WORKER_METRICS_PORT).toBe(0);
+    expect(() => loadConfig({ ...valid, EVENT_AUTO_CLOSE_HOURS: '-1' })).toThrow(ConfigError);
+  });
 });

@@ -25,6 +25,14 @@ const changePasswordSchema = z
   })
   .strict();
 
+const forgotPasswordSchema = z.object({ email: z.string().trim().email().max(254) }).strict();
+const resetPasswordSchema = z
+  .object({
+    token: z.string().min(20).max(200),
+    newPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+  })
+  .strict();
+
 export function requestMeta(req: { id?: unknown; ip?: string }): RequestMeta {
   return { requestId: typeof req.id === 'string' ? req.id : undefined, ip: req.ip };
 }
@@ -65,6 +73,34 @@ export function authRoutes(ctx: AppContext): Router {
       expiresIn: session.expiresIn,
       user: session.user,
     });
+  });
+
+  // The reset endpoints are public, so they share the login limiter's settings but not its counter.
+  const resetLimiter = () =>
+    rateLimit({
+      windowMs: config.LOGIN_RATE_LIMIT_WINDOW_SECONDS * 1000,
+      limit: config.LOGIN_RATE_LIMIT_MAX,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      handler: (_req, _res, next) =>
+        next(errors.tooManyRequests('Too many attempts, try again later')),
+    });
+  const forgotLimiter = resetLimiter();
+  const resetPasswordLimiter = resetLimiter();
+
+  router.post('/forgot-password', forgotLimiter, async (req, res) => {
+    const body = parse(forgotPasswordSchema, req.body);
+    await service.requestPasswordReset(ctx, body.email, requestMeta(req));
+    res
+      .status(202)
+      .json({ message: 'If that address has an account, a reset link has been sent.' });
+  });
+
+  router.post('/reset-password', resetPasswordLimiter, async (req, res) => {
+    const body = parse(resetPasswordSchema, req.body);
+    await service.resetPassword(ctx, body.token, body.newPassword, requestMeta(req));
+    res.clearCookie(REFRESH_COOKIE, cookieOptions());
+    res.status(204).end();
   });
 
   router.post('/refresh', trustedOrigin, async (req, res) => {

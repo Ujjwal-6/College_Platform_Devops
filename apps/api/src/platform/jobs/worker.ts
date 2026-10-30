@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import type { Logger } from 'pino';
+import { jobDuration, jobRuns } from '../metrics.js';
 import { mapJob, type JobRecord } from './queue.js';
 
 export interface JobContext {
@@ -72,7 +73,13 @@ export class JobWorker {
     const job = mapJob(claimed.rows[0]);
     const log = logger.child({ jobId: job.id, jobType: job.type, attempt: job.attempts });
     const handler = this.handlers.get(job.type);
+    const began = process.hrtime.bigint();
+    const finish = (outcome: 'succeeded' | 'retried' | 'failed') => {
+      jobRuns.inc({ type: job.type, outcome });
+      jobDuration.observe({ type: job.type }, Number(process.hrtime.bigint() - began) / 1e9);
+    };
     if (!handler) {
+      finish('failed');
       await this.fail(job, `No handler registered for job type "${job.type}"`, log);
       return true;
     }
@@ -82,10 +89,12 @@ export class JobWorker {
         "UPDATE jobs SET status = 'succeeded', completed_at = now(), locked_until = NULL, last_error = NULL, updated_at = now() WHERE id = $1",
         [job.id],
       );
+      finish('succeeded');
       log.info('job succeeded');
     } catch (err) {
       const message = describeError(err);
       if (err instanceof PermanentJobError || job.attempts >= job.maxAttempts) {
+        finish('failed');
         await this.fail(job, message, log);
       } else {
         const delay = (
@@ -97,6 +106,7 @@ export class JobWorker {
                   run_at = now() + make_interval(secs => $3), updated_at = now() WHERE id = $1`,
           [job.id, message.slice(0, 1000), delay],
         );
+        finish('retried');
         log.warn({ err: message, retryInSeconds: delay }, 'job failed, will retry');
       }
     }

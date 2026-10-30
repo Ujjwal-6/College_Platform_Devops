@@ -81,6 +81,7 @@ describe('migration history', () => {
         'event_reports',
         'feedback',
         'budget_items',
+        'password_reset_tokens',
       ]) {
         expect(upTables).toContain(table);
       }

@@ -55,7 +55,7 @@ Pros: shared types across API/web/worker, catches contract mismatches among four
 ### D-05 ORM / query layer — **Implemented, needs confirmation**: plain SQL migrations (`node-pg-migrate`) + `pg` with thin repositories
 Options: Prisma (fast to start, but exclusion constraints and some locking need raw SQL), Knex or `node-postgres` with SQL migrations (transparent, more boilerplate), Drizzle/Kysely (type-safe SQL). *Recommendation:* SQL migrations (node-pg-migrate or Knex) with a thin typed query layer so constraint-heavy parts are explicit. Depends on D-01/D-04.
 
-### D-06 Monitoring deployment — **OPEN**
+### D-06 Monitoring deployment — **Chosen by the engineer on 2026-10-28 (MON-1), awaiting confirmation**
 Prometheus + Grafana are planned (A-10). Open: run them in the same Compose stack on the demo VM (recommended for R1), or use managed offerings (CloudWatch/Managed Grafana, Azure Monitor). The `/metrics` endpoints and dashboards are the same either way.
 
 ### D-07 Cloud provider: AWS vs Azure — **OPEN**
@@ -291,3 +291,26 @@ FR-9.1 to FR-9.3 do not say which categories exist, who may see money, or how ra
 | BA-12 | Migration `040_budget` (the "other" range 040–049 of D-16) | Done |
 | BA-13 | Faculty cannot open the summaries (**confirmed**); on an event of their department they see its own numbers including the budget (follows BA-4) | Confirmed / changed |
 | BA-14 | The budget is not in the post-event report (RPT-1 stays) | Assumed |
+
+## 16. Automatic closing, password reset and monitoring: decisions made while the product owner was away (2026-10-28)
+
+The product owner asked for these and said "you can decide whats best" for monitoring; the rest are the engineer's choices within what was asked.
+
+| ID | Decision | Status |
+|---|---|---|
+| AUTO-1 | A published event closes automatically **24 hours after it ended** (`EVENT_AUTO_CLOSE_HOURS`, 0 turns it off), by the worker every 5 minutes, one transaction per event, through the normal close transition (so the report is queued as for a manual close) | Asked for ("can close if the event has been approved or ended"); the 24 hours is assumed: it gives the organizer a day to add outcomes and photos before the first report is drawn |
+| AUTO-2 | The organizer or an admin can also close by hand, but **only after the event has ended** (as before): closing early would draw the report and allow certificates while the event is still running | Asked for ("manual closing too"); the "only after it ended" limit is kept from FR-2.5's design, to be confirmed |
+| AUTO-3 | Events that were approved but never published are not closed or cancelled automatically | Assumed |
+| AUTO-4 | The timeline and audit record show "system" (no actor) and `automatic: true`; hooks receive the organizer as the actor | Engineer's decision |
+| AUTO-5 | Every process that changes events registers the lifecycle hooks (`registerEventHooks`); the worker does too | Found by a live run |
+| PW-1 | Reset link: 32 random bytes, only a SHA-256 hash stored, valid 60 minutes (`PASSWORD_RESET_TTL_MINUTES`), single use enforced under a row lock | Follows FR-1.4 |
+| PW-2 | The answer to "forgot password" is always the same, for unknown, deactivated and real addresses; at most one email per account per minute | Engineer's decision (no account enumeration) |
+| PW-3 | A new link cancels the earlier ones; using one ends every session and lifts a lockout; the password rules are the same as for changing it | Engineer's decision |
+| PW-4 | Both endpoints are rate limited with the login limiter's settings (own counters) | Follows the security rules |
+| PW-5 | The link is part of the queued email job's payload until jobs are cleaned up; it expires in an hour and works once, so this is accepted. Payloads are never shown in the admin screens | Accepted risk |
+| PW-6 | Migration `041_password_resets` | Done |
+| MON-1 | D-06: Prometheus and Grafana run in the same Compose stack (profile `monitoring`) on the demo VM; the endpoints and dashboard are the same for a managed service later | Engineer's choice (the recommendation already in D-06); the product owner said "you can decide" |
+| MON-2 | `/metrics` is hand-written in Prometheus text format (no new library), off unless `METRICS_TOKEN` is set, bearer-token only; the worker serves its own on `WORKER_METRICS_PORT` | Engineer's decision |
+| MON-3 | Route labels replace ids and codes with `:id`; unmatched addresses share one label, so labels cannot grow without limit | Engineer's decision |
+| MON-4 | One Grafana dashboard (request rate, latency, 5xx share, failed jobs, jobs by status, oldest waiting job, job runs, pool) and five alert rules, written but **never started** (no Docker here) | Unverified |
+| BA-7 | Hall utilization: **kept as built** (08:00–20:00 window) after "no need to remove" | Confirmed by the product owner |

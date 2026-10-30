@@ -150,3 +150,67 @@ export async function revokeAllForUser(db: Executor, userId: string): Promise<vo
     [userId],
   );
 }
+
+// ---- password reset -------------------------------------------------------
+
+export interface ResetTokenRow {
+  id: string;
+  userId: string;
+  expired: boolean;
+  used: boolean;
+}
+
+/** Makes every earlier unused link of the user useless, then stores the new one. */
+export async function replaceResetToken(
+  db: Executor,
+  input: { userId: string; tokenHash: string; ttlMinutes: number },
+): Promise<string> {
+  await db.query(
+    'UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL',
+    [input.userId],
+  );
+  const { rows } = await db.query(
+    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+     VALUES ($1, $2, now() + make_interval(mins => $3)) RETURNING id`,
+    [input.userId, input.tokenHash, input.ttlMinutes],
+  );
+  return rows[0].id as string;
+}
+
+/** True when the user has an unused link made within the last `seconds` seconds. */
+export async function hasRecentResetToken(
+  db: Executor,
+  userId: string,
+  seconds: number,
+): Promise<boolean> {
+  const { rows } = await db.query(
+    `SELECT 1 FROM password_reset_tokens
+      WHERE user_id = $1 AND used_at IS NULL AND created_at > now() - make_interval(secs => $2)`,
+    [userId, seconds],
+  );
+  return rows.length > 0;
+}
+
+/** Row-locks the link so two uses at once are serialized. */
+export async function lockResetToken(
+  db: Executor,
+  tokenHash: string,
+): Promise<ResetTokenRow | null> {
+  const { rows } = await db.query(
+    `SELECT id, user_id, used_at IS NOT NULL AS used, expires_at <= now() AS expired
+       FROM password_reset_tokens WHERE token_hash = $1 FOR UPDATE`,
+    [tokenHash],
+  );
+  return rows[0]
+    ? {
+        id: rows[0].id as string,
+        userId: rows[0].user_id as string,
+        used: rows[0].used as boolean,
+        expired: rows[0].expired as boolean,
+      }
+    : null;
+}
+
+export async function markResetTokenUsed(db: Executor, id: string): Promise<void> {
+  await db.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [id]);
+}

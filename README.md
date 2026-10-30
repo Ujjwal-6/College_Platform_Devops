@@ -61,6 +61,12 @@ Run one API test file: `npm test -w @events/api -- test/auth.test.ts`.
 
 All configuration is read from environment variables and validated at startup (`apps/api/src/config.ts`); the API refuses to start with a missing or weak `JWT_SECRET`. `.env.example` lists every variable with safe placeholders. `.env` is gitignored: never commit it. Tests use `TEST_DATABASE_URL` and refuse to run against any database whose name does not contain `test`.
 
+## Monitoring, automatic closing and password reset
+
+- `/metrics` (API) and `WORKER_METRICS_PORT` (worker) serve Prometheus metrics only when `METRICS_TOKEN` is set; send it as `Authorization: Bearer <token>`. `docker compose --profile app --profile monitoring up` adds Prometheus (http://localhost:9090) and Grafana (http://localhost:3000, dashboard "College Events"). `npm run setup:env` writes the token for Prometheus to `infra/monitoring/metrics-token`; with an older `.env`, add `METRICS_TOKEN` yourself and put the same value in that file. See `docs/monitoring.md`.
+- Finished events close themselves `EVENT_AUTO_CLOSE_HOURS` (default 24) hours after they ended; the worker must be running. The organizer can close an ended event by hand sooner.
+- "Forgot your password?" on the sign-in page emails a link (valid `PASSWORD_RESET_TTL_MINUTES`, default 60, works once). In development the email appears in Mailpit.
+
 ## Layout
 
 ```
@@ -103,4 +109,4 @@ docs/            requirements, architecture, decisions, roadmap, testing, status
 
 ## Known limitations
 
-See `docs/feature-status.md`. In short: no password reset, no self-registration, no `/metrics` endpoint yet, events are closed by an explicit action only (no automatic closing), the new event screens have been tested with mocked-API component tests but not in a real browser, and the Docker/CI definitions have not been executed in every environment (see the status document for what was actually run).
+See `docs/feature-status.md`. In short: no self-registration, the screens have been tested with mocked-API component tests but not in a real browser, Prometheus/Grafana have never been started, and the Docker/CI definitions have not been executed in every environment (see the status document for what was actually run).

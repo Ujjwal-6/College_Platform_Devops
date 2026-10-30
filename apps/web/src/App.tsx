@@ -18,7 +18,9 @@ import { EventForm } from './pages/EventForm';
 import { Events } from './pages/Events';
 import { Halls } from './pages/Halls';
 import { Resources } from './pages/Resources';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Login } from './pages/Login';
+import { ResetPassword } from './pages/ResetPassword';
 import { MyCertificates } from './pages/MyCertificates';
 import { VerifyCertificate } from './pages/VerifyCertificate';
 import { MyRegistrations } from './pages/MyRegistrations';
@@ -55,6 +57,8 @@ export function App() {
       )}
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route
           path="/"
           element={
