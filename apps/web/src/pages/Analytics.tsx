@@ -63,9 +63,9 @@ export function Analytics() {
   }
 
   return (
-    <main>
+    <main className="card">
       <h1>Analytics</h1>
-      <form onSubmit={submit} className="row" aria-label="Period">
+      <form onSubmit={submit} className="inline-form" aria-label="Period">
         <label>
           From
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -101,7 +101,7 @@ export function Analytics() {
             {summary.period.days} {summary.period.days === 1 ? 'day' : 'days'}, India time).
           </p>
           {summary.truncated && (
-            <p role="status" className="notice">
+            <p role="status" className="notice notice-warn">
               Only the first events of this period are listed. Choose a shorter period to see the
               rest.
             </p>

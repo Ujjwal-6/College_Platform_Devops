@@ -29,6 +29,10 @@ export type Handler = (url: string, init?: RequestInit) => Promise<Response>;
 
 /** Calls the event page makes on its own (bookings, reservations, resource availability): empty unless a test says otherwise. */
 function defaultHandler(key: string): (() => Promise<Response>) | undefined {
+  if (key === 'GET /api/events?scope=published&limit=5')
+    return () => json(200, { data: [], page: { limit: 5, offset: 0, total: 0 } });
+  if (key === 'GET /api/events?scope=approvals&limit=1')
+    return () => json(200, { data: [], page: { limit: 1, offset: 0, total: 0 } });
   if (key.startsWith('GET /api/bookings?scope=event'))
     return () => json(200, { data: [], page: { limit: 100, offset: 0, total: 0 } });
   if (key.startsWith('GET /api/resource-reservations?')) return () => json(200, { data: [] });

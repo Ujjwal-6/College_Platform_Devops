@@ -62,7 +62,7 @@ export function VerifyCertificate() {
         <button type="submit">Check</button>
       </form>
       {result?.kind === 'valid' && (
-        <div role="status" className="notice">
+        <div role="status" className="notice notice-ok">
           <p>
             <strong>This certificate is genuine.</strong>
           </p>

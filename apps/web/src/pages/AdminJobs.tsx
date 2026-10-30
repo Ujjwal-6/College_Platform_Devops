@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { formatDateTime } from '../lib/datetime';
+import { Pill } from '../components/Pill';
 
 const STATUSES = ['failed', 'queued', 'running', 'succeeded'] as const;
 type Status = (typeof STATUSES)[number];
@@ -81,7 +82,21 @@ export function AdminJobs() {
           {result?.data.map((j) => (
             <tr key={j.id}>
               <td>{j.type}</td>
-              <td>{j.status}</td>
+              <td>
+                <Pill
+                  tone={
+                    j.status === 'failed'
+                      ? 'bad'
+                      : j.status === 'succeeded'
+                        ? 'ok'
+                        : j.status === 'running'
+                          ? 'warn'
+                          : 'info'
+                  }
+                >
+                  {j.status}
+                </Pill>
+              </td>
               <td>
                 {j.attempts} / {j.maxAttempts}
               </td>

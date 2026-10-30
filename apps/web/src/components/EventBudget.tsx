@@ -177,6 +177,7 @@ export function EventBudget({ event }: { event: EventDetail }) {
                     Edit
                   </button>{' '}
                   <button
+                    className="danger"
                     disabled={busy}
                     onClick={() =>
                       void run(async () => {

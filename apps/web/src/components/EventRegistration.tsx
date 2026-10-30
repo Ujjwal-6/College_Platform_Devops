@@ -153,13 +153,14 @@ export function EventRegistration({ event }: { event: EventDetail }) {
       )}
 
       {queued && (
-        <div className="notice">
+        <div className="notice notice-warn">
           <p>
             <strong>You are on the waitlist</strong> (place {queued.waitlistPosition}). If a seat
             opens you are registered automatically and we email you.
           </p>
           {!started && (
             <button
+              className="danger"
               disabled={busy}
               onClick={() =>
                 void act(async () => void (await post(`/registrations/${queued.id}/cancel`)))
@@ -173,13 +174,14 @@ export function EventRegistration({ event }: { event: EventDetail }) {
 
       {mine && (
         <>
-          <div className="notice">
+          <div className="notice notice-ok">
             <p>
               <strong>You are registered</strong>
               {mine.team ? ` as part of the team “${mine.team.name}”` : ''}.
             </p>
             {!started && (
               <button
+                className="danger"
                 disabled={busy}
                 onClick={() =>
                   void act(async () => {
@@ -316,6 +318,7 @@ export function EventRegistration({ event }: { event: EventDetail }) {
               </button>
               {team.invitation.active && (
                 <button
+                  className="danger"
                   disabled={busy}
                   onClick={() =>
                     void act(async () => {

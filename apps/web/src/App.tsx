@@ -1,5 +1,6 @@
-import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
+import { useDocumentTitle } from './lib/useDocumentTitle';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { AdminAudit } from './pages/AdminAudit';
 import { AdminCertificateDesign } from './pages/AdminCertificateDesign';
@@ -27,30 +28,41 @@ import { MyRegistrations } from './pages/MyRegistrations';
 
 export function App() {
   const { status, user, signOut, hasRole } = useAuth();
+  useDocumentTitle();
   return (
     <>
       {status === 'authenticated' && (
         <header className="topbar">
+          <Link to="/" className="brand" aria-label="College Events home">
+            <span className="brand-mark" aria-hidden="true">
+              CE
+            </span>
+            College Events
+          </Link>
           <nav aria-label="Main">
-            <Link to="/">Dashboard</Link>
-            <Link to="/events">Events</Link>
-            {hasRole('faculty', 'hod', 'admin') && <Link to="/approvals">Approvals</Link>}
-            <Link to="/halls">Halls</Link>
-            <Link to="/resources">Resources</Link>
+            <NavLink to="/" end>
+              Dashboard
+            </NavLink>
+            <NavLink to="/events">Events</NavLink>
+            {hasRole('faculty', 'hod', 'admin') && <NavLink to="/approvals">Approvals</NavLink>}
+            <NavLink to="/halls">Halls</NavLink>
+            <NavLink to="/resources">Resources</NavLink>
             {hasRole('organizer', 'faculty', 'hod', 'admin') && (
-              <Link to="/bookings">Bookings</Link>
+              <NavLink to="/bookings">Bookings</NavLink>
             )}
-            <Link to="/my-registrations">My registrations</Link>
-            <Link to="/check-in">Check-in</Link>
-            <Link to="/certificates">Certificates</Link>
-            <Link to="/calendar">Calendar</Link>
-            {hasRole('admin', 'hod') && <Link to="/analytics">Analytics</Link>}
-            {hasRole('admin', 'hod') && <Link to="/users">Users</Link>}
-            {hasRole('admin') && <Link to="/admin/audit">Audit log</Link>}
-            {hasRole('admin') && <Link to="/admin/jobs">Jobs</Link>}
-            {hasRole('admin') && <Link to="/admin/certificate-design">Certificate design</Link>}
+            <NavLink to="/my-registrations">My registrations</NavLink>
+            <NavLink to="/check-in">Check-in</NavLink>
+            <NavLink to="/certificates">Certificates</NavLink>
+            <NavLink to="/calendar">Calendar</NavLink>
+            {hasRole('admin', 'hod') && <NavLink to="/analytics">Analytics</NavLink>}
+            {hasRole('admin', 'hod') && <NavLink to="/users">Users</NavLink>}
+            {hasRole('admin') && <NavLink to="/admin/audit">Audit log</NavLink>}
+            {hasRole('admin') && <NavLink to="/admin/jobs">Jobs</NavLink>}
+            {hasRole('admin') && (
+              <NavLink to="/admin/certificate-design">Certificate design</NavLink>
+            )}
           </nav>
-          <span>
+          <span className="topbar-user">
             {user?.name} <button onClick={() => void signOut()}>Sign out</button>
           </span>
         </header>

@@ -3,6 +3,7 @@ import { api, ApiError, fieldIssues } from '../api/client';
 import type { EventCertificates as Data } from '../api/aftermathTypes';
 import type { EventDetail } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { Pill } from './Pill';
 
 const POLL_MS = 5000;
 
@@ -89,7 +90,11 @@ export function EventCertificates({ event }: { event: EventDetail }) {
           {error}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p role="status" className="notice notice-ok">
+          {message}
+        </p>
+      )}
       {data && (
         <>
           <p>
@@ -144,11 +149,13 @@ export function EventCertificates({ event }: { event: EventDetail }) {
                     <td>{c.holderName}</td>
                     <td>{c.code}</td>
                     <td>
-                      {c.revokedAt
-                        ? `Withdrawn${c.revokeReason ? ` (${c.revokeReason})` : ''}`
-                        : c.status === 'ready'
-                          ? 'Ready'
-                          : 'Being prepared'}
+                      {c.revokedAt ? (
+                        <Pill tone="bad">{`Withdrawn${c.revokeReason ? ` (${c.revokeReason})` : ''}`}</Pill>
+                      ) : c.status === 'ready' ? (
+                        <Pill tone="ok">Ready</Pill>
+                      ) : (
+                        <Pill tone="warn">Being prepared</Pill>
+                      )}
                     </td>
                     <td>
                       {admin && !c.revokedAt && (
@@ -181,6 +188,7 @@ export function EventCertificates({ event }: { event: EventDetail }) {
                           </button>
                         ) : (
                           <button
+                            className="danger"
                             disabled={busy}
                             aria-label={`Withdraw certificate for ${c.holderName}`}
                             onClick={() => setWithdrawing({ id: c.id, name: c.holderName })}

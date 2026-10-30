@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError, fieldIssues } from '../api/client';
 import { ROLES, type Department, type ManagedUser, type Role } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { Pill } from '../components/Pill';
 
 interface ListResponse {
   data: ManagedUser[];
@@ -63,10 +64,15 @@ export function AdminUsers() {
               <td>{u.name}</td>
               <td>{u.email}</td>
               <td>{u.roles.join(', ')}</td>
-              <td>{u.isActive ? 'Active' : 'Deactivated'}</td>
+              <td>
+                {u.isActive ? <Pill tone="ok">Active</Pill> : <Pill tone="off">Deactivated</Pill>}
+              </td>
               {isAdmin && (
                 <td>
-                  <button onClick={() => void toggle(u)}>
+                  <button
+                    className={u.isActive ? 'danger' : undefined}
+                    onClick={() => void toggle(u)}
+                  >
                     {u.isActive ? 'Deactivate' : 'Activate'}
                   </button>
                 </td>

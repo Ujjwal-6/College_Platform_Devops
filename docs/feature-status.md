@@ -2,6 +2,11 @@
 
 Last verified against the repository: 2026-10-27 (shared foundation + Event Management & Approvals + Hall Booking & Resource Management).
 
+**UI refresh and browser testing (2026-10-29):** one stylesheet design system (colour tokens, light and dark mode, cards, tables, status pills, buttons with a red style for destructive actions, focus rings), a branded navigation bar, a dashboard with upcoming events, an approvals reminder and role-aware shortcuts, a sticky section menu on long event pages, a column chart for long series, "no access" and "not found" pages, per-page browser tab titles and a favicon. No new library.
+
+**Tested in a real browser (headless Chrome driven over the DevTools protocol, local database with seeded users of every role, events in every state):** 79 page loads across 7 roles at desktop width, plus dark mode and a 390 px phone width for the main roles, with no console errors or failed requests other than the expected 403/404 for people without access; and 54 scripted checks of real user flows, all passing after the fixes below: wrong password, password reset through the emailed link (real SMTP to a local mail catcher), creating an event, the three-level approval and publishing, registration with capacity and waitlist, budget entry with the over-budget warning, check-in by typed code, hall booking with warnings, conflict refusal and two-level approval, certificates (issue, verify, withdraw, reinstate), feedback, closed-event report, creating a user, admin screens, teams with an invitation code, and permission checks. **Found and fixed:** two components on the event page shared a React key (console error on every event page); the "not found" box was stuck at the left edge; checkboxes and radio buttons were laid out wrongly; a student opening a check-in URL saw the whole gate screen (the server refused every action, but the page did not say so); status words, notices and destructive buttons all looked the same.
+**Not tested:** the camera scanner on a real device, Safari and Firefox, a real phone, real email through a real mail provider, downloaded PDFs opened in a PDF viewer from the browser, Docker and GitHub Actions.
+
 ## Status rules
 
 Allowed values: **Not started · In progress · Implemented · Tested · Blocked · Dropped**. *Dropped* means the product owner removed the feature from the scope; it is not planned and not counted as outstanding.
@@ -19,7 +24,7 @@ Commands actually run on the development machine (macOS, Node 24, PostgreSQL 16 
 | Check                                                                          | Result                                                                                          |
 | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | `npm test -w @events/api` (real PostgreSQL test database)                      | 862 tests in 37 files passed                                                                    |
-| `npm test -w @events/web`                                                      | 254 tests in 17 files passed                                                                      |
+| `npm test -w @events/web`                                                      | 255 tests in 17 files passed                                                                      |
 | `npm run lint`, `npm run typecheck`, `npm run build`, `prettier --check`        | passed (no errors)                                                                              |
 | Migrations `001–041`: up, full down, up again on an empty scratch database      | passed (automated in `test/migrations.test.ts`, which also checks the booking exclusion constraint) |
 | Booking concurrency file (`booking-concurrency.test.ts`) run 5 times in a row   | 12/12 passed each time                                                                          |

@@ -114,7 +114,7 @@ export function BookingDetailPage() {
         )}
       </dl>
       {!booking.coversEvent && booking.event && (
-        <p className="notice" role="note">
+        <p className="notice notice-warn" role="note">
           This booking does not cover the whole event time ({formatDateTime(booking.event.startAt)}{' '}
           to {formatDateTime(booking.event.endAt)}).
         </p>

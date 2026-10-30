@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { EventDetail as Detail } from '../api/types';
@@ -9,6 +9,7 @@ import { EventBudget } from '../components/EventBudget';
 import { EventFeedback } from '../components/EventFeedback';
 import { EventRegistration } from '../components/EventRegistration';
 import { EventReport } from '../components/EventReport';
+import { SectionNav } from '../components/SectionNav';
 import { levelLabel, StatusBadge } from '../components/StatusBadge';
 import { formatDate, formatDateTime } from '../lib/datetime';
 
@@ -32,6 +33,7 @@ export function EventDetailPage() {
   const { id } = useParams();
   const [event, setEvent] = useState<Detail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const articleRef = useRef<HTMLElement>(null);
   const [problem, setProblem] = useState<ApiError | string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [comment, setComment] = useState('');
@@ -69,9 +71,17 @@ export function EventDetailPage() {
 
   if (loadError)
     return (
-      <p role="alert" className="card error">
-        {loadError}
-      </p>
+      <section className="card">
+        <h1>Event not found</h1>
+        <p role="alert" className="error">
+          {loadError}
+        </p>
+        <p>
+          <Link className="button" to="/events">
+            Back to events
+          </Link>
+        </p>
+      </section>
     );
   if (!event) return <p role="status">Loading…</p>;
   const a = event.actions;
@@ -94,7 +104,7 @@ export function EventDetailPage() {
   };
 
   return (
-    <article className="card">
+    <article className="card" ref={articleRef}>
       <div className="row">
         <h1>{event.title}</h1>
         <StatusBadge status={event.status} level={event.approvalLevel} />
@@ -102,6 +112,7 @@ export function EventDetailPage() {
       <p className="muted">
         {event.category} · organised by {event.organizerName ?? 'unknown'}
       </p>
+      <SectionNav root={articleRef} />
 
       {event.status === 'draft' && event.lastRejection && (
         <p className="notice notice-error" role="note">
@@ -115,7 +126,7 @@ export function EventDetailPage() {
         </p>
       )}
       {event.calendar && event.calendar.blocks.length > 0 && (
-        <p className="notice" role="note">
+        <p className="notice notice-warn" role="note">
           Heads-up: these dates fall on a restricted academic period (
           {event.calendar.blocks
             .map((b) => `${b.title}, ${formatDate(b.startDate)}–${formatDate(b.endDate)}`)
@@ -124,7 +135,7 @@ export function EventDetailPage() {
         </p>
       )}
       {event.calendar && event.calendar.warnings.length > 0 && (
-        <p className="notice" role="note">
+        <p className="notice notice-warn" role="note">
           Heads-up: these dates overlap{' '}
           {event.calendar.warnings
             .map((w) => `${w.title} (${formatDate(w.startDate)}–${formatDate(w.endDate)})`)
@@ -182,7 +193,7 @@ export function EventDetailPage() {
           </button>
         )}
         {a.canWithdraw && (
-          <button disabled={busy} onClick={() => void run('withdraw')}>
+          <button className="danger" disabled={busy} onClick={() => void run('withdraw')}>
             Withdraw
           </button>
         )}
@@ -199,6 +210,7 @@ export function EventDetailPage() {
         )}
         {a.canApprove && (
           <button
+            className="danger"
             disabled={busy}
             onClick={() => {
               setPanel('reject');
@@ -214,7 +226,7 @@ export function EventDetailPage() {
           </button>
         )}
         {a.canUnpublish && (
-          <button disabled={busy} onClick={() => void run('unpublish')}>
+          <button className="danger" disabled={busy} onClick={() => void run('unpublish')}>
             Unpublish
           </button>
         )}
@@ -236,6 +248,7 @@ export function EventDetailPage() {
         )}
         {a.canCancel && (
           <button
+            className="danger"
             disabled={busy}
             onClick={() => {
               setPanel('cancel');
@@ -340,11 +353,11 @@ export function EventDetailPage() {
           </ol>
         </>
       )}
-      <EventRegistration key={event.status} event={event} />
+      <EventRegistration key={`registration-${event.status}`} event={event} />
       <EventFeedback key={`feedback-${event.status}`} event={event} />
       <EventCertificates key={`certificates-${event.status}`} event={event} />
       <EventReport key={`report-${event.status}`} event={event} />
-      {event.workflow && <EventBookings key={event.status} event={event} />}
+      {event.workflow && <EventBookings key={`bookings-${event.status}`} event={event} />}
       {event.workflow && <EventBudget key={`budget-${event.status}`} event={event} />}
       {event.workflow && (event.status === 'published' || event.status === 'closed') && (
         <EventAnalytics key={`analytics-${event.status}`} event={event} />

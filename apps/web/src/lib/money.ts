@@ -17,7 +17,8 @@ export function formatRupees(minor: number): string {
 }
 
 /** 150050 → "₹1,500.50". */
-export const formatMoney = (minor: number) => `₹${formatRupees(minor)}`;
+export const formatMoney = (minor: number) =>
+  `${minor < 0 ? '-' : ''}₹${formatRupees(Math.abs(minor))}`;
 
 /** 150050 → "1500.50", for an input being edited. */
 export function minorToInput(minor: number): string {

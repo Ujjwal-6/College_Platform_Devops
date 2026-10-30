@@ -224,10 +224,23 @@ describe('who sees what', () => {
     ).toBe(false);
   });
 
-  it('tells a person with no access, as the server words it', async () => {
+  it('tells a person with no access, instead of showing the gate screen', async () => {
     mockFetch({
       ...base(studentUser),
       [ATTENDANCE]: () => json(403, { error: { code: 'FORBIDDEN', message: 'No permission' } }),
+    });
+    renderApp('/events/e1/check-in');
+    expect(await screen.findByRole('alert')).toHaveTextContent('You cannot check people in');
+    expect(screen.queryByLabelText('Pass code (type or paste)')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to the event' })).toHaveAttribute(
+      'href',
+      '/events/e1',
+    );
+  });
+
+  it('shows the server’s own words when a scan is refused', async () => {
+    mockFetch({
+      ...base(),
       'POST /api/events/e1/check-ins': () =>
         json(403, {
           error: {
