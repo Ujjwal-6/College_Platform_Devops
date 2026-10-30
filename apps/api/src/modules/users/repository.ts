@@ -145,6 +145,16 @@ export async function listActiveByRole(
   return rows as UserContact[];
 }
 
+/** Name and email for those of a set of users whose account is active (to address notifications). */
+export async function getActiveContacts(db: Executor, ids: string[]): Promise<UserContact[]> {
+  if (ids.length === 0) return [];
+  const { rows } = await db.query(
+    'SELECT id, email, name FROM users WHERE id = ANY($1::uuid[]) AND is_active ORDER BY name, id',
+    [ids],
+  );
+  return rows as UserContact[];
+}
+
 /** An account by email address (any case), with whether it is active. */
 export async function findContactByEmail(
   db: Executor,

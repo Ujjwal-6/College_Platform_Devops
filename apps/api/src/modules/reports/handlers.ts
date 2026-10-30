@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AppContext } from '../../context.js';
 import { withTx, type Executor } from '../../platform/db.js';
 import { PermanentJobError, describeError, type JobWorker } from '../../platform/jobs/worker.js';
+import { finalApproverId } from '../approvals/index.js';
 import { recordAudit } from '../audit/audit.js';
 import { getEventById } from '../events/index.js';
 import { notify } from '../notifications/notify.js';
@@ -12,8 +13,8 @@ import * as repo from './repository.js';
 import { buildReportData } from './service.js';
 
 const payloadSchema = z.object({ reportId: z.string().uuid() });
-/** Photographs are embedded as they are, so the file can be as large as its photographs (20 x 5 MB). */
-const MAX_REPORT_BYTES = 120_000_000;
+/** Photographs are embedded as they are, so the file can be as large as its photographs (20 x 2 MB). */
+const MAX_REPORT_BYTES = 60_000_000;
 
 export interface ReportRunOptions {
   compress?: boolean;
@@ -21,12 +22,15 @@ export interface ReportRunOptions {
   render?: (data: ReportData, opts: { compress?: boolean }) => Promise<Buffer>;
 }
 
-/** The organizer and every active admin hear about a finished or failed report. */
-async function recipients(db: Executor, organizerId: string) {
-  const admins = await usersRepo.listActiveByRole(db, 'admin', null);
-  const organizer = await usersRepo.getContacts(db, [organizerId]);
-  const seen = new Set<string>();
-  return [...organizer, ...admins].filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+/**
+ * Who hears about a finished or failed report: the organizer, the admin who gave the event's final
+ * approval (the "chosen admin"), and whoever asked for this version. Each only if their account is still
+ * active, and each once. Other admins are not emailed.
+ */
+async function recipients(db: Executor, report: repo.ReportRecord, organizerId: string) {
+  const chosen = await finalApproverId(db, report.eventId);
+  const ids = [organizerId, chosen, report.requestedBy].filter((id): id is string => id !== null);
+  return usersRepo.getActiveContacts(db, [...new Set(ids)]);
 }
 
 async function announce(
@@ -37,7 +41,7 @@ async function announce(
   eventTitle: string,
   organizerId: string,
 ) {
-  for (const person of await recipients(tx, organizerId)) {
+  for (const person of await recipients(tx, report, organizerId)) {
     await notify(tx, {
       type,
       to: person.email,

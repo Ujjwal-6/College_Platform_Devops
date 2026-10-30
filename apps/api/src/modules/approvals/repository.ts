@@ -55,3 +55,14 @@ export async function decidersInRound(
   );
   return new Set(rows.map((r) => r.approver_id as string));
 }
+
+/** The admin who gave the final approval of the event's latest submission round, if there was one. */
+export async function finalApproverId(db: Executor, eventId: string): Promise<string | null> {
+  const { rows } = await db.query(
+    `SELECT approver_id FROM event_approvals
+      WHERE event_id = $1 AND level = 'admin' AND decision = 'approved'
+      ORDER BY round DESC LIMIT 1`,
+    [eventId],
+  );
+  return (rows[0]?.approver_id as string | undefined) ?? null;
+}

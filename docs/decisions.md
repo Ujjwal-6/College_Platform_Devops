@@ -246,20 +246,20 @@ The product owner answered the questions about this feature on 2026-10-27; the S
 
 ## 13. Post-event report: assumptions made while the product owner was away (2026-10-27)
 
-U-7 (template, content, photo limits, reopening) was open; its defaults were used and the rest chosen by the engineer. **All rows await confirmation.** Details and reasons: `docs/report-design.md`.
+U-7 (template, content, photo limits, reopening) was open; its defaults were used and the rest chosen by the engineer. The product owner answered the questions about it on 2026-10-27; the Status column shows what was confirmed or changed, and rows still marked *Assumed* await confirmation. Details and reasons: `docs/report-design.md`.
 
 | ID | Decision | Status |
 |---|---|---|
-| RPT-1 | Content: event details, speakers, attendance, outcomes, photographs, feedback summary (with up to 10 anonymous comments) and certificate counts. Not in it: attendee names, budget (feature 9), equipment | Assumed |
-| RPT-2 | U-7 defaults: a simple internal layout (A4, plain); photos JPEG/PNG, 5 MB each, 20 per event; **no reopening** (closed is final); a new version is a separate action and old versions are kept | Assumed (U-7 default) |
-| RPT-3 | "Outcomes" is one free-text field (up to 3000 characters) added by the organizer or an admin | Assumed |
+| RPT-1 | Content: event details, speakers, attendance, outcomes, photographs, feedback summary (with up to 10 anonymous comments) and certificate counts. Not in it: attendee names, budget (feature 9), equipment | **Confirmed** ("this is completely fine") |
+| RPT-2 | U-7 defaults: a simple internal layout (A4, plain); photos JPEG/PNG, **2 MB** each, 20 per event; **no reopening** (closed is final); a new version is a separate action and old versions are kept | Layout and rules assumed (U-7 default); **photo size lowered from 5 MB to 2 MB at the product owner's request** |
+| RPT-3 | "Outcomes" is one free-text field (up to 3000 characters) added by the organizer or an admin | **Confirmed** ("no need" for separate fields) |
 | RPT-4 | Photos and outcomes can be added from the time the event is published, before or after it closes; a photo that cannot be read is skipped with a note | Assumed (FR-19.3, FR-19.4) |
 | RPT-5 | Attendance rate = checked in ÷ registered (one decimal); walk-ins count as registered; stayed/left early/not checked out shown when check-out was required | Assumed (AC-9.3) |
 | RPT-6 | Feedback in the report is the count, average, spread and up to 10 comments, with no names | Assumed (follows F-3) |
-| RPT-7 | The organizer, the department's faculty/HOD and admins can see and download reports; the organizer and admins ask for new versions, only for a closed event, one at a time | Assumed |
-| RPT-8 | When a version is ready or failed, the organizer and **every active admin** are emailed a link to the event page | Assumed (FR-19.6) |
+| RPT-7 | The organizer, the department's faculty/HOD and admins can see and download reports; the organizer and admins ask for new versions, only for a closed event, one at a time | **Confirmed** (faculty and HODs may see them: "yeah") |
+| RPT-8 | When a version is ready or failed, **the organizer and the "chosen admin" are emailed** (a link to the event page); whoever asked for that version is told too | **Changed by the product owner** ("only to the organizer and the chosen admin"). *The chosen admin is read as the admin who gave the event's final approval: to be confirmed.* If that admin is deactivated or there was none, only the organizer is told |
 | RPT-9 | A failed job is retried (5 attempts, with backoff), then the version is marked failed, audited and announced; no failure counter yet (no metrics system) | Assumed (AT-19.4; the metric is not built) |
-| RPT-10 | Reports are limited to 120 MB (photos are embedded as they are) | Engineer's decision |
+| RPT-10 | Reports are limited to 60 MB (photographs are embedded as they are) | Engineer's decision, follows the 2 MB photo limit |
 | RPT-11 | Standard PDF fonts only: English text | Follows ATT-7, C-5 |
 | RPT-12 | Migration `038_event_reports` | Done |
-
+| RPT-13 | A small public function `finalApproverId` in the approvals module tells who gave the final approval | Done |

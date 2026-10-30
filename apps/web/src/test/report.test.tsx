@@ -43,7 +43,7 @@ const overview = (o: Record<string, unknown> = {}) => ({
   inputs: { outcomes: null },
   photos: [],
   reports: [],
-  limits: { photoMaxBytes: 5_000_000, photoMaxCount: 20 },
+  limits: { photoMaxBytes: 2_000_000, photoMaxCount: 20 },
   can: { edit: true, generate: true },
   ...o,
 });
@@ -169,6 +169,14 @@ describe('photographs', () => {
       new File(['x'], 'p.png', { type: 'image/png' }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent('Unsupported file type');
+  });
+
+  it('tells the organizer the size limit it was given by the server', async () => {
+    mockFetch(routes(organizerUser));
+    renderApp('/events/e1');
+    expect(
+      await screen.findByLabelText(/Add a photograph \(JPEG or PNG, up to 2 MB\)/),
+    ).toBeInTheDocument();
   });
 
   it('shows the photographs, loading each with the sign-in token, and removes one', async () => {

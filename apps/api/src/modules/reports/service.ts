@@ -23,8 +23,8 @@ import { REPORT_JOB } from './jobs.js';
 import type { ReportData } from './pdf.js';
 import * as repo from './repository.js';
 
-/** The limits of the default layout (U-7): JPEG or PNG, 5 MB each, 20 photographs per event. */
-export const PHOTO_MAX_BYTES = 5_000_000;
+/** The limits of the layout: JPEG or PNG, 2 MB each (lowered at the product owner's request), 20 photographs per event. */
+export const PHOTO_MAX_BYTES = 2_000_000;
 export const PHOTO_MAX_COUNT = 20;
 const COMMENTS_IN_REPORT = 10;
 
