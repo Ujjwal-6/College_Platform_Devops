@@ -197,3 +197,7 @@ The events, approvals and calendar modules are implemented. Their shared contrac
 ## 14. Hall booking and resources (as built)
 
 `modules/halls` owns halls; `modules/resources` owns resources and reservations; `modules/bookings` owns hall bookings, their two-step approval and the event hooks. They reach events only through `modules/events/index.ts` and the calendar through `checkRange`. Design, concurrency strategy and limits: `docs/booking-design.md`.
+
+## Lifecycle hooks in every process
+
+Anything that changes an event's state (the API, and the worker when it closes finished events) calls `registerEventHooks(ctx)` (`src/hooks.ts`) at start-up. A process without it would change events without queueing the report or releasing bookings; `test/hooks-wiring.test.ts` checks that both entry points call it and that every module registering an event hook is listed.

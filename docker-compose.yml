@@ -60,6 +60,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: '1025'
       STORAGE_DIR: /data/storage
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - storage-data:/data/storage
     depends_on:
@@ -79,6 +80,9 @@ services:
   worker:
     <<: *api
     command: ['node', 'dist/worker.js']
+    environment:
+      <<: *api-env
+      WORKER_METRICS_PORT: '4001'
     healthcheck: { disable: true }
 
   web:
@@ -88,6 +92,31 @@ services:
       - '127.0.0.1:8080:80'
     depends_on:
       api: { condition: service_healthy }
+
+  # Optional monitoring (FR-16): docker compose --profile app --profile monitoring up
+  #   Prometheus http://localhost:9090   Grafana http://localhost:3000 (dashboard "College Events")
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./infra/monitoring/metrics-token:/etc/prometheus/metrics-token:ro
+    ports:
+      - '127.0.0.1:9090:9090'
+
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - '127.0.0.1:3000:3000'
+    depends_on: [prometheus]
 
 volumes:
   db-data:

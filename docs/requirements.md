@@ -37,7 +37,7 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 - FR-1.1 Login with email + password; short-lived access JWT plus rotating, revocable refresh token. [P: JWT] [R: rotation details]
 - FR-1.2 User creation/onboarding. **Unresolved U-1** (self-registration with admin approval vs. college email/SSO).
 - FR-1.3 Admin manages users: create, deactivate, assign roles and department.
-- FR-1.4 Password reset by emailed single-use expiring link. [R]
+- FR-1.4 Password reset by emailed single-use expiring link. [R] *As built: `docs/decisions.md` §16 (PW-1…PW-6).*
 - FR-1.5 Logout revokes the refresh token. [R]
 
 **Workflow:** login → access token (≈15 min) + refresh cookie → refresh rotates the token → reuse of an old refresh token revokes the whole token family.
@@ -60,7 +60,7 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 - FR-2.2 Event states: `draft → pending_approval → approved → live → closed`, plus `rejected` and `cancelled`. Transitions are validated server-side in one state machine. [R: exact state names]
 - FR-2.3 Only the owner (or admin) may edit a draft; edits after approval re-trigger approval or are restricted. **Unresolved U-5.**
 - FR-2.4 Cancellation releases hall bookings and equipment reservations and notifies registrants.
-- FR-2.5 Event closure is an explicit action (by organizer/admin) or an automatic transition after the end time. The close transition triggers feature 19. [N]
+- FR-2.5 Event closure is an explicit action (by organizer/admin) or an automatic transition after the end time. The close transition triggers feature 19. [N] *As built: automatic 24 hours after the end, manual once ended (AUTO-1…AUTO-5).*
 
 **Edge cases:** end before start; event in the past; editing while approval is in progress; cancelling an event that has registrants; closing an event twice (idempotent).
 
@@ -279,7 +279,7 @@ Standing rules live in `CLAUDE.md`. Testable items:
 
 ## 16. Monitoring and observability — R1-lite [P]
 
-- FR-16.1 `/metrics` endpoint on API and worker (request rate, latency, errors, queue depth, failed jobs). [P: Prometheus/Grafana planned]
+- FR-16.1 `/metrics` endpoint on API and worker (request rate, latency, errors, queue depth, failed jobs). [P: Prometheus/Grafana planned] *As built: `docs/monitoring.md`.*
 - FR-16.2 Structured JSON logs with a correlation id per request/job. [R]
 - FR-16.3 At least one Grafana dashboard and one alert rule. [R]
 - FR-16.4 Where Prometheus/Grafana are deployed **OPEN (D-06)**.

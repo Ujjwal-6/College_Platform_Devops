@@ -84,9 +84,22 @@ const schema = z.object({
     .min(1024)
     .default(10 * 1024 * 1024),
 
+  // /metrics is off unless a token is set; Prometheus presents it as a bearer token
+  METRICS_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(16).optional()),
+  // the worker serves its own /metrics on this port (0 = not served)
+  WORKER_METRICS_PORT: z.coerce.number().int().min(0).max(65535).default(0),
+
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
+  // at most one reset email per account in this many seconds
+  PASSWORD_RESET_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(60),
+
   JOB_POLL_INTERVAL_MS: z.coerce.number().int().min(100).default(2000),
   JOB_LOCK_SECONDS: z.coerce.number().int().min(5).default(300),
   JOB_BACKOFF_BASE_SECONDS: z.coerce.number().int().min(1).default(30),
+
+  // A published event is closed automatically this many hours after it ended (0 turns it off). The organizer may close it earlier by hand.
+  EVENT_AUTO_CLOSE_HOURS: z.coerce.number().int().min(0).max(720).default(24),
+  EVENT_AUTO_CLOSE_INTERVAL_SECONDS: z.coerce.number().int().min(1).default(300),
 });
 
 export type Config = Omit<z.infer<typeof schema>, 'COOKIE_SECURE' | 'TRUST_PROXY'> & {

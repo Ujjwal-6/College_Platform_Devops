@@ -1,6 +1,7 @@
 import type { AppContext } from '../../context.js';
 import { withTx } from '../../platform/db.js';
 import { AppError, errors } from '../../platform/errors.js';
+import { notify } from '../notifications/notify.js';
 import { recordAudit, type RequestMeta } from '../audit/audit.js';
 import {
   burnPasswordCheck,
@@ -206,6 +207,84 @@ export async function changePassword(
       action: 'auth.password_changed',
       targetType: 'user',
       targetId: userId,
+      ...meta,
+    });
+  });
+}
+
+/**
+ * Emails a reset link to an active account. The caller always gets the same answer whether or not the
+ * address belongs to an account, so this cannot be used to find out who has one. Only a hash of the
+ * link is stored, an earlier unused link stops working, and an account gets at most one email per
+ * cooldown period.
+ */
+export async function requestPasswordReset(
+  ctx: AppContext,
+  email: string,
+  meta: RequestMeta,
+): Promise<void> {
+  const user = await repo.findUserByEmail(ctx.pool, email);
+  if (!user || !user.isActive) return;
+  const { token, hash } = generateRefreshToken();
+  await withTx(ctx.pool, async (tx) => {
+    // serialize concurrent requests for the same account, so the cooldown holds
+    await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
+    if (await repo.hasRecentResetToken(tx, user.id, ctx.config.PASSWORD_RESET_COOLDOWN_SECONDS)) {
+      return;
+    }
+    const id = await repo.replaceResetToken(tx, {
+      userId: user.id,
+      tokenHash: hash,
+      ttlMinutes: ctx.config.PASSWORD_RESET_TTL_MINUTES,
+    });
+    await notify(tx, {
+      type: 'auth.password_reset',
+      to: user.email,
+      data: {
+        name: user.name,
+        url: `${ctx.config.WEB_BASE_URL}/reset-password?token=${token}`,
+        minutes: ctx.config.PASSWORD_RESET_TTL_MINUTES,
+      },
+      key: `auth.password_reset:${id}`,
+    });
+    await recordAudit(tx, {
+      actorId: user.id,
+      action: 'auth.password_reset_requested',
+      targetType: 'user',
+      targetId: user.id,
+      ...meta,
+    });
+  });
+}
+
+/** Sets a new password with an emailed link. Each link works once; every session of the account ends. */
+export async function resetPassword(
+  ctx: AppContext,
+  token: string,
+  newPassword: string,
+  meta: RequestMeta,
+): Promise<void> {
+  // hash first: the (slow) hashing happens before the row lock is taken
+  const tokenHash = hashToken(token);
+  const peek = await withTx(ctx.pool, (tx) => repo.lockResetToken(tx, tokenHash));
+  if (!peek || peek.used || peek.expired) throw errors.invalidResetToken();
+  const user = await repo.findUserById(ctx.pool, peek.userId);
+  if (!user || !user.isActive) throw errors.invalidResetToken();
+  const violation = passwordPolicyViolation(newPassword, user.email);
+  if (violation) throw errors.validation([{ path: 'newPassword', message: violation }]);
+  const hash = await hashPassword(newPassword, ctx.config);
+
+  await withTx(ctx.pool, async (tx) => {
+    const row = await repo.lockResetToken(tx, tokenHash);
+    if (!row || row.used || row.expired) throw errors.invalidResetToken();
+    await repo.markResetTokenUsed(tx, row.id);
+    await repo.updatePasswordHash(tx, row.userId, hash);
+    await repo.revokeAllForUser(tx, row.userId);
+    await recordAudit(tx, {
+      actorId: row.userId,
+      action: 'auth.password_reset',
+      targetType: 'user',
+      targetId: row.userId,
       ...meta,
     });
   });

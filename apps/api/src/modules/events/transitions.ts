@@ -9,7 +9,8 @@ export interface TransitionInput {
   event: EventRecord;
   action: EventAction;
   to: EventStatus;
-  actor: AuthUser;
+  /** Null for a change made by the system itself (the automatic close). */
+  actor: AuthUser | null;
   meta: RequestMeta;
   audit: AuditAction;
   /** Extra columns to write together with the status change. */
@@ -35,14 +36,14 @@ export async function applyTransition(tx: PoolClient, t: TransitionInput): Promi
   await repo.addHistory(tx, {
     eventId: t.event.id,
     action: t.action,
-    actorId: t.actor.id,
+    actorId: t.actor?.id ?? null,
     fromStatus: t.event.status,
     toStatus: t.to,
     level: t.level,
     comment: t.comment,
   });
   await recordAudit(tx, {
-    actorId: t.actor.id,
+    actorId: t.actor?.id ?? null,
     action: t.audit,
     targetType: 'event',
     targetId: t.event.id,
@@ -59,7 +60,8 @@ export async function applyTransition(tx: PoolClient, t: TransitionInput): Promi
     event: updated,
     previousStatus: t.event.status,
     action: t.action,
-    actorId: t.actor.id,
+    // hooks always get a person: for a system change, the organizer
+    actorId: t.actor?.id ?? t.event.organizerId,
   });
   return updated;
 }

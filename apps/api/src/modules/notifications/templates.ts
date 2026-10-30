@@ -10,6 +10,13 @@ import type { MailMessage } from '../../platform/mailer.js';
 const oneLine = (text: string) => text.replace(/[\r\n]+/g, ' ').trim();
 
 const templates = {
+  'auth.password_reset': {
+    data: z.object({ name: z.string(), url: z.string(), minutes: z.number() }),
+    render: (d: { name: string; url: string; minutes: number }): Omit<MailMessage, 'to'> => ({
+      subject: 'Reset your College Events password',
+      text: `Hello ${d.name},\n\nSomeone asked to reset the password of your College Events account. To choose a new password, open this link within ${d.minutes} minutes:\n${d.url}\n\nThe link works once. If you did not ask for this, ignore this email: your password stays as it is.\n`,
+    }),
+  },
   'account.created': {
     data: z.object({ name: z.string(), loginUrl: z.string() }),
     render: (d: { name: string; loginUrl: string }): Omit<MailMessage, 'to'> => ({

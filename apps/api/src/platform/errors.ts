@@ -23,6 +23,12 @@ export const errors = {
   invalidCredentials: () => new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password'),
   invalidRefreshToken: () =>
     new AppError(401, 'INVALID_REFRESH_TOKEN', 'Session expired, please sign in again'),
+  invalidResetToken: () =>
+    new AppError(
+      400,
+      'INVALID_RESET_TOKEN',
+      'This password reset link is invalid, expired or already used',
+    ),
   forbidden: (message = 'You do not have permission to perform this action') =>
     new AppError(403, 'FORBIDDEN', message),
   notFound: (what = 'Resource') => new AppError(404, 'NOT_FOUND', `${what} not found`),

@@ -327,3 +327,16 @@ export async function list(
   );
   return { rows: rows.map(map), total: count.rows[0].n as number };
 }
+
+/** Published events that ended before the cutoff, oldest first. */
+export async function listEndedPublished(
+  db: Executor,
+  cutoff: Date,
+  limit: number,
+): Promise<string[]> {
+  const { rows } = await db.query(
+    "SELECT id FROM events WHERE status = 'published' AND end_at <= $1 ORDER BY end_at, id LIMIT $2",
+    [cutoff, limit],
+  );
+  return rows.map((r) => r.id as string);
+}
