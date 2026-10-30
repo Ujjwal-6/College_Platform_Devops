@@ -184,12 +184,13 @@ describe('the automatic report when an event closes (AT-19.1, AT-19.9)', () => {
     expect(text).not.toContain('Left early:');
   });
 
-  it('tells the organizer and every admin when it is ready, once each', async () => {
+  it('tells the organizer and the admin who gave the final approval when it is ready, once each, and nobody else', async () => {
     const { report } = await closed(['stayed']);
     await workerFor(t).drain();
     const mails = t.mailer.sent.filter((m) => m.subject.startsWith('Post-event report ready'));
+    // org.admin approved the event; the other admin, the faculty and the HOD are not told
     expect(mails.map((m) => m.to).sort()).toEqual(
-      [org.organizer.user.email, org.admin.user.email, org.admin2.user.email].sort(),
+      [org.organizer.user.email, org.admin.user.email].sort(),
     );
     expect((await reports(report.event_id))[0].status).toBe('ready');
     expect(await audit('report.generated')).toHaveLength(1);
@@ -335,7 +336,7 @@ describe('closing twice and delivering twice (AT-19.3)', () => {
       Array.from({ length: 4 }, () => generateReport(t.ctx, { reportId: report.id })),
     );
     expect(storedFiles('.pdf')).toHaveLength(1);
-    expect(await emails('report.ready')).toHaveLength(3);
+    expect(await emails('report.ready')).toHaveLength(2); // the organizer and the final approving admin, once each
     expect(await audit('report.generated')).toHaveLength(1);
   });
 
@@ -393,7 +394,7 @@ describe('retries and failures (AT-19.4)', () => {
       m.subject.startsWith('Post-event report could not be made'),
     );
     expect(mails.map((m) => m.to).sort()).toEqual(
-      [org.organizer.user.email, org.admin.user.email, org.admin2.user.email].sort(),
+      [org.organizer.user.email, org.admin.user.email].sort(),
     );
 
     const dl = await as(t, org.organizer).get(`/api/event-reports/${report.id}/download`);
@@ -604,7 +605,7 @@ describe('late photographs and new versions (AT-19.8)', () => {
       [1, 'ready', 'system'],
     ]);
     expect(asAdmin.body.data.can).toEqual({ edit: true, generate: false }); // one is already being made
-    expect(asAdmin.body.data.limits).toEqual({ photoMaxBytes: 5_000_000, photoMaxCount: 20 });
+    expect(asAdmin.body.data.limits).toEqual({ photoMaxBytes: 2_000_000, photoMaxCount: 20 });
     await workerFor(t).drain();
     const asFaculty = await as(t, org.faculty).get(`/api/events/${ev}/report`);
     expect(asFaculty.body.data.can).toEqual({ edit: false, generate: false });
@@ -650,7 +651,7 @@ describe('photographs (U-7: JPEG or PNG, 5 MB, 20 per event)', () => {
     expect((await photo(org.organizer, ev, await png(), 'text/plain')).status).toBe(400);
     const big = Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      Buffer.alloc(5_100_000),
+      Buffer.alloc(2_100_000),
     ]);
     expect((await photo(org.organizer, ev, big, 'image/png')).status).toBe(413);
     expect((await photo(org.organizer, ev, await png(), 'image/png', 'x'.repeat(201))).status).toBe(
@@ -796,5 +797,60 @@ describe('what the database guarantees', () => {
         [ev],
       ),
     ).rejects.toMatchObject({ constraint: 'event_reports_version_key' });
+  });
+});
+
+describe('who is told about a report', () => {
+  const readyMail = () =>
+    t.mailer.sent
+      .filter((m) => m.subject.startsWith('Post-event report ready'))
+      .map((m) => m.to)
+      .sort();
+
+  it('also tells the person who asked for a new version, once', async () => {
+    const { ev } = await closed(['stayed']);
+    await workerFor(t).drain();
+    t.mailer.sent.length = 0;
+    await q("DELETE FROM jobs WHERE type = 'email.send'");
+    await as(t, org.admin2).post(`/api/events/${ev}/reports`); // another admin asks
+    await workerFor(t).drain();
+    expect(readyMail()).toEqual(
+      [org.organizer.user.email, org.admin.user.email, org.admin2.user.email].sort(),
+    );
+  });
+
+  it('does not send the organizer two emails when they asked for the version themselves', async () => {
+    const { ev } = await closed(['stayed']);
+    await workerFor(t).drain();
+    t.mailer.sent.length = 0;
+    await q("DELETE FROM jobs WHERE type = 'email.send'");
+    await as(t, org.organizer).post(`/api/events/${ev}/reports`);
+    await workerFor(t).drain();
+    expect(readyMail()).toEqual([org.organizer.user.email, org.admin.user.email].sort());
+  });
+
+  it('does not email an account that has been deactivated', async () => {
+    const { report } = await closed(['stayed']);
+    await q('UPDATE users SET is_active = false WHERE id = $1', [org.admin.user.id]);
+    await workerFor(t).drain();
+    expect(readyMail()).toEqual([org.organizer.user.email]);
+    expect((await reports(report.event_id))[0].status).toBe('ready');
+  });
+
+  it('tells only the organizer when no admin gave a final approval', async () => {
+    const { ev } = await closed(['stayed']);
+    await q("DELETE FROM event_approvals WHERE event_id = $1 AND level = 'admin'", [ev]);
+    await workerFor(t).drain();
+    expect(readyMail()).toEqual([org.organizer.user.email]);
+  });
+
+  it('uses the final approval of the latest round when the event was approved more than once', async () => {
+    const { ev } = await closed(['stayed']);
+    await q(
+      "INSERT INTO event_approvals (event_id, round, level, decision, approver_id) VALUES ($1, 2, 'admin', 'approved', $2)",
+      [ev, org.admin2.user.id],
+    );
+    await workerFor(t).drain();
+    expect(readyMail()).toEqual([org.organizer.user.email, org.admin2.user.email].sort());
   });
 });

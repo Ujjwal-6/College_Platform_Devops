@@ -70,7 +70,7 @@ function defaultHandler(key: string): (() => Promise<Response>) | undefined {
           inputs: { outcomes: null },
           photos: [],
           reports: [],
-          limits: { photoMaxBytes: 5_000_000, photoMaxCount: 20 },
+          limits: { photoMaxBytes: 2_000_000, photoMaxCount: 20 },
           can: { edit: false, generate: false },
         },
       });
