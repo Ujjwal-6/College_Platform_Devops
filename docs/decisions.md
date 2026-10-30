@@ -263,3 +263,10 @@ U-7 (template, content, photo limits, reopening) was open; its defaults were use
 | RPT-11 | Standard PDF fonts only: English text | Follows ATT-7, C-5 |
 | RPT-12 | Migration `038_event_reports` | Done |
 | RPT-13 | A small public function `finalApproverId` in the approvals module tells who gave the final approval | Done |
+
+## 14. Scope change (2026-10-27)
+
+| ID | Decision | Status |
+|---|---|---|
+| S-1 | **Feature 12 (risk/health scoring, conflict prediction, intelligent allocation) is dropped** from the scope. No code, tests or documents other than the record of this decision need to be produced for it | Decided by the product owner ("no need of feature 12") |
+

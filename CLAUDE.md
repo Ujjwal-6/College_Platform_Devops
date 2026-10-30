@@ -41,13 +41,13 @@ briefly, and ask. Record the outcome in `docs/decisions.md` (single decision log
 1 Auth/users · 2 Events · 3 Individual/team registration + invitation codes · 4 Hall booking,
 availability, conflicts, concurrency · 5 Equipment/resources · 6 Approvals Organizer→Faculty→HOD→Admin ·
 7 QR check-in, attendance, PDF gate passes · 8 Certificates, feedback · 9 Budget, analytics, reports ·
-10 Email + background jobs · 11 Audit trail, admin · 12 Risk/health scoring, conflict prediction,
-resource allocation · 13 Security/concurrency/reliability · 14 Frontend/REST/DB integration ·
+10 Email + background jobs · 11 Audit trail, admin · 12 ~~Risk/health scoring, conflict prediction,
+resource allocation~~ (dropped 2026-10-27) · 13 Security/concurrency/reliability · 14 Frontend/REST/DB integration ·
 15 Git/Docker/CI-CD · 16 Monitoring · 17 Scalability (future) · 18 Testing/docs/delivery ·
 19 Auto post-event PDF report on event close · 20 Academic calendar guard (blocks restricted
 dates, warns on configured conflicts).
-First release excludes feature 17 beyond documentation; feature 12 is rule-based (weighted
-checks), not ML.
+First release excludes feature 17 beyond documentation; feature 12 was dropped from the scope
+(`docs/decisions.md` S-1): do not build it.
 
 ## Architecture principles
 - Modular monolith: one Express API plus a separate worker process sharing one codebase. No microservices.

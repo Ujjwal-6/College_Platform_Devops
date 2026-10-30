@@ -55,7 +55,7 @@ Critical path: **decisions → auth → events → approvals → calendar + book
 - **Exit criteria:** AC-3.x, AC-7.x, AC-8.x, AT-19.1 to AT-19.9, AC-10.x pass.
 
 ### Phase 4 — Insight, observability, hardening (Weeks 9–10)
-- B: rule-based risk score and allocation suggestions (feature 12).
+- B: ~~rule-based risk score and allocation suggestions (feature 12)~~ — dropped by the product owner on 2026-10-27.
 - D: metrics, dashboards, alert; E2E tests (Playwright) for the main journeys.
 - A/C: security review (authorization matrix audit, rate limits, upload checks, dependency/secret scanning), performance/load test for booking and registration, job failure/restart tests.
 - **Milestone M4 (end of Week 10):** feature-complete for R1; no known high-severity security issues; dashboards live.
