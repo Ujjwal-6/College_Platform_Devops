@@ -249,16 +249,36 @@ describe('what organizers see', () => {
   });
 
   it('keeps the comments in an order that does not reveal who wrote first', async () => {
-    const { ev } = await people5();
+    const { ev, people } = await endedEvent(t, org, ['stayed', 'stayed', 'stayed', 'stayed']);
+    for (let i = 0; i < 4; i++) {
+      await q('INSERT INTO feedback (event_id, user_id, rating, comment) VALUES ($1, $2, 4, $3)', [
+        ev,
+        people[i]!.user.id,
+        `Comment ${i}`,
+      ]);
+    }
+    // Make the time order the exact opposite of the order the results use (a hash of the row id),
+    // so the check does not depend on luck: if the results followed the writing order it would fail.
+    const byHash = (await q('SELECT comment FROM feedback ORDER BY md5(id::text)')).map(
+      (r) => r.comment as string,
+    );
+    for (let rank = 0; rank < byHash.length; rank++) {
+      await q(
+        'UPDATE feedback SET created_at = now() - make_interval(mins => $2) WHERE comment = $1',
+        [byHash[rank], rank],
+      );
+    }
+    const written = (await q('SELECT comment FROM feedback ORDER BY created_at, id')).map(
+      (r) => r.comment as string,
+    );
+    expect(written).toEqual([...byHash].reverse());
+
     const a = (await results(org.organizer, ev)).body.data.comments;
     const b = (await results(org.admin, ev)).body.data.comments;
     expect(b).toEqual(a); // stable between requests and viewers
-    const writtenOrder = (
-      await q('SELECT comment FROM feedback WHERE comment IS NOT NULL ORDER BY created_at, id')
-    ).map((r) => r.comment);
-    expect(a.map((c: { comment: string }) => c.comment)).not.toEqual(
-      writtenOrder.length > 1 ? writtenOrder : null,
-    );
+    const shown = a.map((c: { comment: string }) => c.comment);
+    expect(shown).toEqual(byHash); // shuffled by the hash,
+    expect(shown).not.toEqual(written); // not by when they were written
   });
 
   it('is for the organizer, the department staff and admins only', async () => {

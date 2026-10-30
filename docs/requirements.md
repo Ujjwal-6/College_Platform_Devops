@@ -322,6 +322,8 @@ Load balancing, microservices, Kubernetes, cloud scaling and disaster recovery. 
 - AT-19.8 *Given* late-uploaded photos, *when* an authorized user triggers regeneration, *then* version 2 includes them and version 1 is retained.
 - AT-19.9 Closing the event returns before the PDF exists (the request is not blocked by generation).
 
+> **As built (2026-10-27):** closing an event queues its report in the same transaction; the worker draws a PDF of event details, speakers, attendance, outcomes, photographs, feedback and certificate counts, with "not provided" wherever something is missing; versions are kept and a new one can be asked for; the organizer and admins are emailed. AT-19.1 to AT-19.9 are implemented and tested (`reports.test.ts`), except that the **failure metric** of AT-19.4 is not built (no metrics system yet). U-7 was open, so the layout, content and limits are assumptions: `docs/decisions.md` section 13; design and limits: `docs/report-design.md`.
+
 ## 20. Academic calendar guard — R1 [N]
 
 > **As built (2026-10-23, revised):** the calendar is **advisory everywhere**. Event submission and hall bookings show overlapping entries as suggestions and record them for approvers; nothing is refused (U-3 revised). Acceptance tests AT-20.1–20.9 are implemented for event submission in `apps/api/test/calendar.test.ts` with that meaning (the entry is recorded, the submission succeeds). AT-20.10 (parallel bookings on a blocked date) no longer applies: bookings on restricted dates are allowed after acknowledgement. Hall-scoped entries were not built.

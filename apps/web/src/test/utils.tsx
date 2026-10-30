@@ -63,6 +63,17 @@ function defaultHandler(key: string): (() => Promise<Response>) | undefined {
       json(200, {
         data: { summary: { count: 0, average: null, distribution: [0, 0, 0, 0, 0] }, comments: [] },
       });
+  if (/^GET \/api\/events\/[^/?]+\/report$/.test(key))
+    return () =>
+      json(200, {
+        data: {
+          inputs: { outcomes: null },
+          photos: [],
+          reports: [],
+          limits: { photoMaxBytes: 5_000_000, photoMaxCount: 20 },
+          can: { edit: false, generate: false },
+        },
+      });
   if (/^GET \/api\/events\/[^/?]+\/certificates$/.test(key))
     return () =>
       json(200, { summary: { eligible: 0, issued: 0, ready: 0, canIssue: true }, data: [] });

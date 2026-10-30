@@ -6,6 +6,7 @@ import { EventBookings } from '../components/EventBookings';
 import { EventCertificates } from '../components/EventCertificates';
 import { EventFeedback } from '../components/EventFeedback';
 import { EventRegistration } from '../components/EventRegistration';
+import { EventReport } from '../components/EventReport';
 import { levelLabel, StatusBadge } from '../components/StatusBadge';
 import { formatDate, formatDateTime } from '../lib/datetime';
 
@@ -340,6 +341,7 @@ export function EventDetailPage() {
       <EventRegistration key={event.status} event={event} />
       <EventFeedback key={`feedback-${event.status}`} event={event} />
       <EventCertificates key={`certificates-${event.status}`} event={event} />
+      <EventReport key={`report-${event.status}`} event={event} />
       {event.workflow && <EventBookings key={event.status} event={event} />}
     </article>
   );

@@ -30,6 +30,8 @@ import {
 } from './modules/certificates/routes.js';
 import { feedbackRoutes } from './modules/feedback/routes.js';
 import { registerRegistrationHooks } from './modules/registrations/hooks.js';
+import { registerReportHooks } from './modules/reports/hooks.js';
+import { eventReportRoutes, reportRoutes } from './modules/reports/routes.js';
 import { reservationRoutes, resourceRoutes } from './modules/resources/routes.js';
 import { userRoutes } from './modules/users/routes.js';
 
@@ -82,6 +84,8 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api/events', eventAttendanceRoutes(ctx));
   app.use('/api/events', eventCertificateRoutes(ctx));
   app.use('/api/events', feedbackRoutes(ctx));
+  app.use('/api/events', eventReportRoutes(ctx));
+  app.use('/api/event-reports', reportRoutes(ctx));
   app.use('/api/certificates', certificateRoutes(ctx));
   app.use('/api/certificate-template', certificateTemplateRoutes(ctx));
   app.use('/api/check-in', checkInRoutes(ctx));
@@ -97,6 +101,7 @@ export function createApp(ctx: AppContext): Express {
   registerBookingHooks(ctx);
   registerRegistrationHooks(ctx);
   registerAttendanceGuards();
+  registerReportHooks();
 
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));
