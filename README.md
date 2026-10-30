@@ -2,7 +2,7 @@
 
 Centralised platform for the college event lifecycle: events, approvals, hall booking, equipment, registration, attendance, certificates, reporting and monitoring. See `docs/` for requirements, architecture, decisions, roadmap and status; `CLAUDE.md` holds the engineering rules.
 
-**Current state:** shared foundation only (authentication, role-based access control, audit log, job queue, notification and file-storage building blocks). Business features are built on top of it feature by feature. See `docs/feature-status.md`.
+**Current state:** the shared foundation and the business features are built: events and approvals, hall booking and equipment, registration, attendance, certificates and feedback, post-event reports, budgets and analytics, password reset, automatic closing and metrics. `docs/feature-status.md` says exactly what was tested and what was not. Team guides: `docs/team-git-guide.md` (applying and pushing the deliveries) and `docs/manual-test-guide.md` (testing by hand with every kind of user).
 
 ## Stack
 
