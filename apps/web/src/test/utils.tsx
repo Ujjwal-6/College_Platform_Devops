@@ -74,6 +74,34 @@ function defaultHandler(key: string): (() => Promise<Response>) | undefined {
           can: { edit: false, generate: false },
         },
       });
+  if (/^GET \/api\/events\/[^/?]+\/budget$/.test(key))
+    return () =>
+      json(200, {
+        data: {
+          currency: 'INR',
+          items: [],
+          totals: {
+            estimateMinor: 0,
+            actualMinor: 0,
+            differenceMinor: 0,
+            overBudget: false,
+            byCategory: [],
+          },
+          can: { edit: false },
+          limits: { maxItems: 200, maxAmountMinor: 100_000_000_000 },
+        },
+      });
+  if (/^GET \/api\/events\/[^/?]+\/analytics$/.test(key))
+    return () =>
+      json(200, {
+        data: {
+          registrations: { registered: 0, perDay: [] },
+          attendance: { checkedIn: 0, ratePercent: null, noShows: null, completed: 0 },
+          feedback: { count: 0, average: null, distribution: [0, 0, 0, 0, 0] },
+          certificates: { issued: 0 },
+          budget: null,
+        },
+      });
   if (/^GET \/api\/events\/[^/?]+\/certificates$/.test(key))
     return () =>
       json(200, { summary: { eligible: 0, issued: 0, ready: 0, canIssue: true }, data: [] });

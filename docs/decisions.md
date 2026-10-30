@@ -270,3 +270,24 @@ U-7 (template, content, photo limits, reopening) was open; its defaults were use
 |---|---|---|
 | S-1 | **Feature 12 (risk/health scoring, conflict prediction, intelligent allocation) is dropped** from the scope. No code, tests or documents other than the record of this decision need to be produced for it | Decided by the product owner ("no need of feature 12") |
 
+
+## 15. Budget and analytics: assumptions made while the product owner was away (2026-10-27)
+
+FR-9.1 to FR-9.3 do not say which categories exist, who may see money, or how rates are defined, so the engineer chose. The product owner answered on 2026-10-27; the Status column shows what was confirmed or changed. Details and reasons: `docs/budget-analytics-design.md`.
+
+| ID | Decision | Status |
+|---|---|---|
+| BA-1 | Budget categories are a fixed list: venue, equipment, catering, printing, speakers, prizes, travel, marketing, other | **Confirmed** ("yes") |
+| BA-2 | Plan and spending are separate kinds of line item; the difference is spending minus plan | Assumed (FR-9.1) |
+| BA-3 | Money is integer paise (INR), at most ₹100,00,00,000 per item and 200 items per event; the database also checks the range | Follows ASM-3 |
+| BA-4 | Budget: the organizer and admins edit; **the HOD and the faculty of the event's department can read**; nobody else | **Changed by the product owner** ("hod and faculty can both see them"; first assumed HOD only) (AC-9.2) |
+| BA-5 | Spending above the plan is a warning only; a cancelled event's budget is read-only; edits after closing are allowed and audited with `afterClose` | Follows the edge cases in requirements section 9 |
+| BA-6 | Attendance rate = checked in ÷ registered (waitlisted and cancelled are not registered); empty before the event starts; the overall rate counts only events that have started | Follows AC-9.3; the rest assumed |
+| BA-7 | Hall utilization = confirmed bookings inside 08:00 to 20:00 each day ÷ 12 hours per day; active halls only; admins only | Assumed (the opening hours are not recorded anywhere). The answer "no need of that" was unclear (drop the window, or drop hall utilization?); **left as built, to be clarified** |
+| BA-8 | Summaries: admins see every department, HODs only their own, nobody else; default period is the last 90 days, at most 366 | **Confirmed** ("yes yes") |
+| BA-9 | The analytics module reads other modules' tables with read-only aggregate queries (one set-based query instead of one per event) | A documented exception to the module rule; product owner: "as you wish" |
+| BA-10 | CSV: events (admins, HODs) and halls (admins); UTF-8, CRLF, text cells beginning with `= + - @` tab or CR get a leading `'`; money in rupees | Assumed (FR-9.3) |
+| BA-11 | Lists are limited to 500 events and say so when cut short | Engineer's decision |
+| BA-12 | Migration `040_budget` (the "other" range 040–049 of D-16) | Done |
+| BA-13 | Faculty cannot open the summaries (**confirmed**); on an event of their department they see its own numbers including the budget (follows BA-4) | Confirmed / changed |
+| BA-14 | The budget is not in the post-event report (RPT-1 stays) | Assumed |
