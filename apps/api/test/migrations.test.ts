@@ -74,6 +74,9 @@ describe('migration history', () => {
         'event_volunteers',
         'gate_passes',
         'event_attendance_settings',
+        'certificates',
+        'certificate_template',
+        'feedback',
       ]) {
         expect(upTables).toContain(table);
       }

@@ -141,6 +141,13 @@ const templates = {
       text: `Hello ${d.name},\n\nYour gate pass for "${d.eventTitle}" (${d.when}) is ready. Sign in and open the event page to see your QR code or download the PDF:\n${d.url}\n\nShow the QR code at the gate when you arrive and again when you leave. Please do not share it.\n`,
     }),
   },
+  'certificate.ready': {
+    data: z.object({ name: z.string(), eventTitle: z.string(), url: z.string() }),
+    render: (d: { name: string; eventTitle: string; url: string }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Your certificate: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\nYour certificate of participation for "${d.eventTitle}" is ready. Sign in to download it:\n${d.url}\n`,
+    }),
+  },
   'registration.event_cancelled': {
     data: z.object({ name: z.string(), eventTitle: z.string(), url: z.string() }),
     render: (d: { name: string; eventTitle: string; url: string }): Omit<MailMessage, 'to'> => ({

@@ -219,3 +219,28 @@ The product owner asked for registration to be built end to end with the questio
 | D-21 | Migration `034_attendance_checkout` (check-out columns, `walk_in` method, per-event settings) | Done |
 | ATT-14 | One check-in and one check-out per person (no tracking of leaving and returning) | **Confirmed** by the product owner |
 | D-22 | Migration `035_walk_ins_over_capacity` (organizer option, default off) | Done |
+
+## 12. Certificates and feedback: assumptions made while the product owner was away (2026-10-27)
+
+The product owner answered the questions about this feature on 2026-10-27; the Status column shows what was confirmed or changed. Rows still marked *Assumed* were chosen by the engineer and await confirmation. It applies the defaults of U-6 and U-12. Details and reasons: `docs/certificates-design.md`.
+
+| ID | Decision | Status |
+|---|---|---|
+| C-1 | A certificate goes to people whose attendance is *completed*: checked in and, while the organizer requires check-out (default), stayed to the end. **Participation certificates only** | Participation-only **confirmed** ("yes only participation"); the rest assumed (U-6; uses the check-out rule the product owner asked for) |
+| C-2 | Certificates are made **only when the organizer (or an admin) presses "Issue certificates"** after the event has ended; nothing is issued automatically at close | **Changed by the product owner** ("organizer presses issue"); the automatic issue on close was removed |
+| C-3 | A certificate does not depend on giving feedback | **Confirmed** ("no need") |
+| C-4 | One certificate per person per event, enforced by a unique constraint | Requirement (AC-8.1) |
+| C-5 | A worker draws the PDF; the person is emailed a link (not the file or the code) and downloads it signed in | Assumed (FR-8.4) |
+| C-6 | Public verification by an 80-bit code, no sign-in, shows only the printed name, event and date, rate limited to 60 checks per 15 minutes per address | Assumed (FR-8.3) |
+| C-7 | An admin can redraw a certificate after a name correction; the code stays the same | Assumed (FR-8 edge case) |
+| C-8 | Participation certificates only: no winner or other types | **Confirmed** |
+| F-1 | Feedback is a 1 to 5 rating plus an optional comment (up to 1000 characters), once per person, no editing | Left to the engineer ("whatever you feel like"): kept simple, one rating |
+| F-2 | Only people who were checked in (even if they left early); open from the end of the event for 14 days | Assumed |
+| F-3 | Anonymous to organizers: counts, average, spread and comments with no names, times or identifiers, in a shuffled order; identity is stored only to enforce "once" | Assumed (U-12 default) |
+| F-4 | No feedback reminder emails | **Confirmed** ("no need") |
+| F-5 | No minimum number of responses before results are shown (a single response can be recognised) | **Confirmed** ("no need for min number"); the risk remains |
+| C-9 | **Withdrawing a certificate:** the organizer or an admin withdraws it with a reason and can reinstate it; its code then says "withdrawn" | Requested by the product owner ("yes"). **No email to the holder: confirmed** ("no need to be emailed"). Who may do it and the reason are assumed |
+| C-10 | **The college's design on certificates:** an admin sets the organisation name, signatory name and title and uploads a logo and a signature image (PNG/JPEG, 1 MB); the organising department's name is always shown; changes apply to certificates drawn afterwards and an admin can redraw existing ones | Requested by the product owner. **One design for all certificates, no per-department design: confirmed** ("as of now that only"); an admin uploads the files when they arrive ("okay done"). **The real files are still to come** |
+| D-23 | Migration `036_certificates_feedback` | Done |
+| D-24 | Migration `037_certificate_revocation_template` | Done |
+

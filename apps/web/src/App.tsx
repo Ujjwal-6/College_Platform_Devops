@@ -2,6 +2,7 @@ import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { AdminAudit } from './pages/AdminAudit';
+import { AdminCertificateDesign } from './pages/AdminCertificateDesign';
 import { AdminJobs } from './pages/AdminJobs';
 import { AdminUsers } from './pages/AdminUsers';
 import { BookingDetailPage } from './pages/BookingDetail';
@@ -17,6 +18,8 @@ import { Events } from './pages/Events';
 import { Halls } from './pages/Halls';
 import { Resources } from './pages/Resources';
 import { Login } from './pages/Login';
+import { MyCertificates } from './pages/MyCertificates';
+import { VerifyCertificate } from './pages/VerifyCertificate';
 import { MyRegistrations } from './pages/MyRegistrations';
 
 export function App() {
@@ -36,10 +39,12 @@ export function App() {
             )}
             <Link to="/my-registrations">My registrations</Link>
             <Link to="/check-in">Check-in</Link>
+            <Link to="/certificates">Certificates</Link>
             <Link to="/calendar">Calendar</Link>
             {hasRole('admin', 'hod') && <Link to="/users">Users</Link>}
             {hasRole('admin') && <Link to="/admin/audit">Audit log</Link>}
             {hasRole('admin') && <Link to="/admin/jobs">Jobs</Link>}
+            {hasRole('admin') && <Link to="/admin/certificate-design">Certificate design</Link>}
           </nav>
           <span>
             {user?.name} <button onClick={() => void signOut()}>Sign out</button>
@@ -73,10 +78,28 @@ export function App() {
           }
         />
         <Route
+          path="/admin/certificate-design"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <AdminCertificateDesign />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/admin/jobs"
           element={
             <ProtectedRoute roles={['admin']}>
               <AdminJobs />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/verify" element={<VerifyCertificate />} />
+        <Route path="/verify/:code" element={<VerifyCertificate />} />
+        <Route
+          path="/certificates"
+          element={
+            <ProtectedRoute>
+              <MyCertificates />
             </ProtectedRoute>
           }
         />

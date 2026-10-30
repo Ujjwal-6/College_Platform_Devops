@@ -47,6 +47,25 @@ function defaultHandler(key: string): (() => Promise<Response>) | undefined {
           mine: null,
         },
       });
+  if (/^GET \/api\/events\/[^/?]+\/feedback\/mine$/.test(key))
+    return () =>
+      json(200, {
+        data: {
+          eligible: false,
+          submitted: false,
+          open: false,
+          opensAt: '2020-01-01T00:00:00.000Z',
+          closesAt: '2020-01-15T00:00:00.000Z',
+        },
+      });
+  if (/^GET \/api\/events\/[^/?]+\/feedback$/.test(key))
+    return () =>
+      json(200, {
+        data: { summary: { count: 0, average: null, distribution: [0, 0, 0, 0, 0] }, comments: [] },
+      });
+  if (/^GET \/api\/events\/[^/?]+\/certificates$/.test(key))
+    return () =>
+      json(200, { summary: { eligible: 0, issued: 0, ready: 0, canIssue: true }, data: [] });
   if (/^GET \/api\/registrations\/[^/?]+\/qr$/.test(key))
     return () =>
       json(200, {

@@ -189,6 +189,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 - AC-8.3 A user can submit feedback only once per event.
 - AC-8.4 Certificate verification returns valid for a genuine code and not found for a random code.
 
+> **As built (2026-10-27):** certificates for people who stayed to the end (issued when the organizer presses Issue), drawn by the worker with the college's logo, name and signature once supplied, emailed as a link, downloadable, verifiable on a public page by an unguessable code, withdrawable (and reinstatable) by the organizer or an admin, and redrawable by an admin; feedback (1 to 5 stars and an optional comment) once per checked-in person, anonymous to organizers. AC-8.1 to AC-8.4 are implemented and tested (`certificates.test.ts`, `feedback.test.ts`). The rules are assumptions (U-6, U-12 defaults): `docs/decisions.md` section 12; design and limits: `docs/certificates-design.md`.
+
 ## 9. Budget tracking, event analytics, reports — R1-lite [P]
 
 **Functional requirements**
