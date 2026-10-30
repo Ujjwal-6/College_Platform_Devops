@@ -56,6 +56,8 @@ docs/
 | `certificates` | certificates | `issueForEvent` (via job) | attendance, notifications |
 | `feedback` | feedback responses | summary for reports | attendance |
 | `budget` | budget lines | totals | events |
+| `budgets` (feature 9) | budget items | totals for analytics, `canSeeBudget` | events |
+| `analytics` (feature 9) | none (read-only aggregates; documented exception to the table rule, BA-9) | summaries, event analytics, CSV | events, registrations, attendance, feedback, certificates, bookings, budgets |
 | `reports` (feature 19) | report records, versions, photos | `requestReport`, download | events, attendance, feedback, files |
 | `analytics` | read-only queries | dashboards/exports | most modules (read only) |
 | `risk` | rule definitions, scores | `score(event)`, suggestions | bookings, equipment, calendar, registrations |

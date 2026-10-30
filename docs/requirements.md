@@ -205,6 +205,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 - AC-9.2 An organizer cannot see another organizer's budget (403).
 - AC-9.3 Attendance rate = checked-in / confirmed registrations, verified against fixture data.
 
+**As built (2026-10-27):** implemented as described in `docs/budget-analytics-design.md`; the categories, visibility and definitions are assumptions BA-1…BA-14 (`docs/decisions.md` §15). PDF summary reports are not built (CSV only, as FR-9.3 says).
+
 ## 10. Email notifications and background job processing — R1 [P]
 
 **Functional requirements**

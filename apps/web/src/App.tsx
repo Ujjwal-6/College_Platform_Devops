@@ -5,6 +5,7 @@ import { AdminAudit } from './pages/AdminAudit';
 import { AdminCertificateDesign } from './pages/AdminCertificateDesign';
 import { AdminJobs } from './pages/AdminJobs';
 import { AdminUsers } from './pages/AdminUsers';
+import { Analytics } from './pages/Analytics';
 import { BookingDetailPage } from './pages/BookingDetail';
 import { BookingForm } from './pages/BookingForm';
 import { Bookings } from './pages/Bookings';
@@ -41,6 +42,7 @@ export function App() {
             <Link to="/check-in">Check-in</Link>
             <Link to="/certificates">Certificates</Link>
             <Link to="/calendar">Calendar</Link>
+            {hasRole('admin', 'hod') && <Link to="/analytics">Analytics</Link>}
             {hasRole('admin', 'hod') && <Link to="/users">Users</Link>}
             {hasRole('admin') && <Link to="/admin/audit">Audit log</Link>}
             {hasRole('admin') && <Link to="/admin/jobs">Jobs</Link>}
@@ -66,6 +68,14 @@ export function App() {
           element={
             <ProtectedRoute roles={['admin', 'hod']}>
               <AdminUsers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute roles={['admin', 'hod']}>
+              <Analytics />
             </ProtectedRoute>
           }
         />

@@ -239,3 +239,18 @@ textarea {
 .inline-form label {
   min-width: 9rem;
 }
+
+.bars th {
+  font-weight: normal;
+  text-align: left;
+  white-space: nowrap;
+}
+.bars td:nth-child(2) {
+  width: 60%;
+}
+.bar {
+  display: block;
+  height: 0.8rem;
+  min-width: 1px;
+  background: #4a6fa5;
+}

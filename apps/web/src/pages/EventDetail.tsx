@@ -4,6 +4,8 @@ import { api, ApiError } from '../api/client';
 import type { EventDetail as Detail } from '../api/types';
 import { EventBookings } from '../components/EventBookings';
 import { EventCertificates } from '../components/EventCertificates';
+import { EventAnalytics } from '../components/EventAnalytics';
+import { EventBudget } from '../components/EventBudget';
 import { EventFeedback } from '../components/EventFeedback';
 import { EventRegistration } from '../components/EventRegistration';
 import { EventReport } from '../components/EventReport';
@@ -343,6 +345,10 @@ export function EventDetailPage() {
       <EventCertificates key={`certificates-${event.status}`} event={event} />
       <EventReport key={`report-${event.status}`} event={event} />
       {event.workflow && <EventBookings key={event.status} event={event} />}
+      {event.workflow && <EventBudget key={`budget-${event.status}`} event={event} />}
+      {event.workflow && (event.status === 'published' || event.status === 'closed') && (
+        <EventAnalytics key={`analytics-${event.status}`} event={event} />
+      )}
     </article>
   );
 }

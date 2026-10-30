@@ -80,6 +80,7 @@ describe('migration history', () => {
         'event_photos',
         'event_reports',
         'feedback',
+        'budget_items',
       ]) {
         expect(upTables).toContain(table);
       }
