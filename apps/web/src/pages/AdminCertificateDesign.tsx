@@ -103,7 +103,9 @@ export function AdminCertificateDesign() {
         {present ? `Replace ${kind}` : `Upload ${kind}`} (PNG or JPEG, up to 1 MB)
         <input type="file" accept="image/png,image/jpeg" onChange={(e) => void upload(kind, e)} />
       </label>
-      {present && <button onClick={() => void remove(kind)}>{`Remove ${kind}`}</button>}
+      {present && (
+        <button className="danger" onClick={() => void remove(kind)}>{`Remove ${kind}`}</button>
+      )}
     </p>
   );
 
@@ -120,7 +122,11 @@ export function AdminCertificateDesign() {
           {error}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p role="status" className="notice notice-ok">
+          {message}
+        </p>
+      )}
       {design && (
         <>
           <form onSubmit={(e) => void saveText(e)}>

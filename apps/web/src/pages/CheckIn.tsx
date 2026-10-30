@@ -48,6 +48,7 @@ export function CheckIn() {
   } | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [denied, setDenied] = useState(false);
   const [camera, setCamera] = useState(false);
   const [mode, setMode] = useState<Mode>('in');
   const [typed, setTyped] = useState('');
@@ -62,8 +63,10 @@ export function CheckIn() {
           `/events/${id}/attendance?limit=15`,
         ),
       );
-    } catch {
-      // a missed refresh is not worth interrupting the person at the gate; the next one tries again
+    } catch (err) {
+      // someone who may not check people in for this event is told so; any other missed refresh is not
+      // worth interrupting the person at the gate, and the next one tries again
+      if (err instanceof ApiError && err.status === 403) setDenied(true);
     }
   }, [id]);
 
@@ -127,11 +130,30 @@ export function CheckIn() {
     [id, mode, refresh],
   );
 
+  if (denied) {
+    return (
+      <section className="card">
+        <h1>Check-in</h1>
+        <p role="alert">
+          You cannot check people in for this event. Only its organizer, the volunteers the
+          organizer added, and admins can.
+        </p>
+        <p>
+          <Link className="button" to={`/events/${id}`}>
+            Back to the event
+          </Link>
+        </p>
+      </section>
+    );
+  }
   if (loadError) {
     return (
-      <p role="alert" className="error">
-        {loadError}
-      </p>
+      <section className="card">
+        <h1>Check-in</h1>
+        <p role="alert" className="error">
+          {loadError}
+        </p>
+      </section>
     );
   }
   const summary = overview?.summary;
@@ -212,7 +234,7 @@ export function CheckIn() {
 
       {outcome &&
         (outcome.kind === 'ok' ? (
-          <p role="status" className="notice">
+          <p role="status" className="notice notice-ok">
             ✓ {outcome.text}
           </p>
         ) : (
@@ -504,6 +526,7 @@ function Volunteers({ eventId }: { eventId: string }) {
           <li key={v.userId}>
             {v.name} ({v.email}){' '}
             <button
+              className="danger"
               aria-label={`Remove ${v.name}`}
               onClick={() =>
                 void change(() =>

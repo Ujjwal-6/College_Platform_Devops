@@ -76,7 +76,7 @@ export function Calendar() {
         </p>
       )}
       {conflicts.length > 0 && (
-        <div className="notice" role="status">
+        <div className="notice notice-warn" role="status">
           Existing events overlap this entry (they were not changed):{' '}
           {conflicts.map((c) => c.title).join(', ')}.
         </div>
@@ -108,6 +108,7 @@ export function Calendar() {
               {isAdmin && (
                 <td>
                   <button
+                    className={e.isActive ? 'danger' : undefined}
                     onClick={() => void toggle(e)}
                     aria-label={`${e.isActive ? 'Deactivate' : 'Activate'} ${e.title}`}
                   >

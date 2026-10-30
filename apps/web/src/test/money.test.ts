@@ -39,6 +39,8 @@ describe('formatting', () => {
     expect(formatRupees(5)).toBe('0.05');
     expect(formatRupees(-150)).toBe('-1.50');
     expect(formatMoney(100)).toBe('₹1.00');
+    expect(formatMoney(-1_050_000)).toBe('-₹10,500.00');
+    expect(formatMoney(0)).toBe('₹0.00');
   });
   it('round-trips an amount through the input form', () => {
     for (const minor of [0, 1, 99, 100, 150_050, 100_000_000_000]) {

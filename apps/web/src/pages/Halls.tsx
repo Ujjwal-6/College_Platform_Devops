@@ -3,6 +3,7 @@ import { api, ApiError, fieldIssues } from '../api/client';
 import type { Hall, HallAvailability } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { formatDateTime, localInputToIso } from '../lib/datetime';
+import { Pill } from '../components/Pill';
 
 const tags = (text: string) =>
   text
@@ -31,7 +32,6 @@ export function Halls() {
   return (
     <section className="card">
       <h1>Halls</h1>
-      <Search />
       <h2>All halls</h2>
       {error && (
         <p role="alert" className="error">
@@ -56,7 +56,11 @@ export function Halls() {
               <td>{h.location}</td>
               <td>{h.capacity}</td>
               <td>{h.facilities.join(', ')}</td>
-              {isAdmin && <td>{h.isActive ? 'Active' : 'Inactive'}</td>}
+              {isAdmin && (
+                <td>
+                  {h.isActive ? <Pill tone="ok">Active</Pill> : <Pill tone="off">Inactive</Pill>}
+                </td>
+              )}
               {isAdmin && (
                 <td>
                   <button onClick={() => setEditing(h)} aria-label={`Edit ${h.name}`}>
@@ -75,6 +79,7 @@ export function Halls() {
           )}
         </tbody>
       </table>
+      <Search />
       {isAdmin && (
         <HallForm
           key={editing?.id ?? 'new'}

@@ -114,7 +114,11 @@ export function EventReport({ event }: { event: EventDetail }) {
           {error}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p role="status" className="notice notice-ok">
+          {message}
+        </p>
+      )}
       {data && (
         <>
           <h3>Outcomes</h3>
@@ -160,6 +164,7 @@ export function EventReport({ event }: { event: EventDetail }) {
                 {p.caption && <span> {p.caption}</span>}{' '}
                 {can?.edit && (
                   <button
+                    className="danger"
                     disabled={busy}
                     aria-label={`Remove photograph ${p.caption ?? ''}`.trim()}
                     onClick={() =>

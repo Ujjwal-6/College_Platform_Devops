@@ -136,10 +136,19 @@ export function EventFeedback({ event }: { event: EventDetail }) {
                 <strong>Average {results.summary.average?.toFixed(1)} out of 5</strong> from{' '}
                 {results.summary.count} {results.summary.count === 1 ? 'response' : 'responses'}
               </p>
-              <ul>
+              <ul className="dist">
                 {[5, 4, 3, 2, 1].map((n) => (
                   <li key={n}>
-                    {stars(n)}: {results.summary.distribution[n - 1]}
+                    <span>
+                      {stars(n)}: {results.summary.distribution[n - 1]}
+                    </span>
+                    <span
+                      className="dist-bar"
+                      aria-hidden="true"
+                      style={{
+                        width: `${((results.summary.distribution[n - 1] ?? 0) / results.summary.count) * 100}%`,
+                      }}
+                    />
                   </li>
                 ))}
               </ul>

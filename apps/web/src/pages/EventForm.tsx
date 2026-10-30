@@ -358,6 +358,7 @@ export function EventForm() {
                 }
               />
               <button
+                className="danger"
                 type="button"
                 onClick={() =>
                   set(

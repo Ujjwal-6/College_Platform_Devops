@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import type { Role } from '../api/types';
 import { useAuth } from './AuthContext';
 
@@ -14,6 +14,18 @@ export function ProtectedRoute({ roles, children }: { roles?: Role[]; children: 
   if (status === 'loading') return <p role="status">Loading…</p>;
   if (status === 'anonymous')
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  if (roles && !hasRole(...roles)) return <p role="alert">You do not have access to this page.</p>;
+  if (roles && !hasRole(...roles)) {
+    return (
+      <section className="card">
+        <h1>No access</h1>
+        <p role="alert">You do not have access to this page.</p>
+        <p>
+          <Link className="button" to="/">
+            Go to the dashboard
+          </Link>
+        </p>
+      </section>
+    );
+  }
   return <>{children}</>;
 }

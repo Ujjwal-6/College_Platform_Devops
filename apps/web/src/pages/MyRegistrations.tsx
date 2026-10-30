@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { MyRegistration } from '../api/registrationTypes';
 import { formatDateTime } from '../lib/datetime';
+import { Pill } from '../components/Pill';
 
 export function MyRegistrations() {
   const [rows, setRows] = useState<MyRegistration[] | null>(null);
@@ -52,19 +53,24 @@ export function MyRegistrations() {
               <td>{r.event ? formatDateTime(r.event.startAt) : ''}</td>
               <td>{r.team ? r.team.name : '—'}</td>
               <td>
-                {r.status === 'registered'
-                  ? 'Registered'
-                  : r.status === 'waitlisted'
-                    ? `Waitlisted (place ${r.waitlistPosition})`
-                    : r.cancelReason === 'event_cancelled'
+                {r.status === 'registered' ? (
+                  <Pill tone="ok">Registered</Pill>
+                ) : r.status === 'waitlisted' ? (
+                  <Pill tone="warn">{`Waitlisted (place ${r.waitlistPosition})`}</Pill>
+                ) : (
+                  <Pill tone="bad">
+                    {r.cancelReason === 'event_cancelled'
                       ? 'Cancelled (event cancelled)'
                       : 'Cancelled'}
+                  </Pill>
+                )}
               </td>
               <td>
                 {r.status !== 'cancelled' &&
                   r.event &&
                   Date.parse(r.event.startAt) > Date.now() && (
                     <button
+                      className="danger"
                       onClick={() => void cancel(r)}
                       aria-label={`${r.status === 'waitlisted' ? 'Leave waitlist' : 'Cancel registration'} for ${r.event.title}`}
                     >
