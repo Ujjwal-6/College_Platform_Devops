@@ -3,6 +3,7 @@ import { ConfigError, loadConfig, loadDotEnv } from './config.js';
 import { registerGatePassHandlers } from './modules/attendance/gatepass.js';
 import { registerCertificateHandlers } from './modules/certificates/handlers.js';
 import { registerNotificationHandlers } from './modules/notifications/notify.js';
+import { registerReportHandlers } from './modules/reports/handlers.js';
 import { JobWorker } from './platform/jobs/worker.js';
 
 loadDotEnv();
@@ -26,6 +27,7 @@ const worker = new JobWorker({
 registerNotificationHandlers(worker, ctx.mailer);
 registerGatePassHandlers(worker, ctx);
 registerCertificateHandlers(worker, ctx);
+registerReportHandlers(worker, ctx);
 
 worker.start();
 ctx.logger.info('job worker started');

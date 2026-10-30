@@ -1,6 +1,7 @@
 import { registerCertificateHandlers } from '../src/modules/certificates/handlers.js';
 import { registerGatePassHandlers } from '../src/modules/attendance/gatepass.js';
 import { registerNotificationHandlers } from '../src/modules/notifications/notify.js';
+import { registerReportHandlers } from '../src/modules/reports/handlers.js';
 import { JobWorker } from '../src/platform/jobs/worker.js';
 import type { LoggedIn, Org, TestApp } from './helpers.js';
 import { createPublishedEvent, register, students } from './registration-helpers.js';
@@ -75,6 +76,7 @@ export function workerFor(t: TestApp): JobWorker {
   registerNotificationHandlers(w, t.mailer);
   registerGatePassHandlers(w, t.ctx);
   registerCertificateHandlers(w, t.ctx);
+  registerReportHandlers(w, t.ctx);
   return w;
 }
 

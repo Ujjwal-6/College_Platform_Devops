@@ -102,21 +102,40 @@ export async function api<T = unknown>(
 }
 
 /** Sends a file as the raw request body (for example a logo image). The API checks what it really is. */
-export async function uploadFile<T = unknown>(path: string, file: File, retry = true): Promise<T> {
+export async function uploadFile<T = unknown>(
+  path: string,
+  file: File,
+  retry = true,
+  method: 'PUT' | 'POST' = 'PUT',
+): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': file.type };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const res = await fetch(`/api${path}`, {
-    method: 'PUT',
+    method,
     headers,
     credentials: 'include',
     body: file,
   });
   if (res.status === 401 && retry) {
-    if (await refreshSession()) return uploadFile<T>(path, file, false);
+    if (await refreshSession()) return uploadFile<T>(path, file, false, method);
     onSessionLost?.();
   }
   if (!res.ok) throw await parseError(res);
   return (await res.json()) as T;
+}
+
+/** Fetches a protected image and returns a temporary address for it (revoke it with URL.revokeObjectURL when done). */
+export async function fetchBlobUrl(path: string, retry = true): Promise<string> {
+  const res = await fetch(`/api${path}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    credentials: 'include',
+  });
+  if (res.status === 401 && retry) {
+    if (await refreshSession()) return fetchBlobUrl(path, false);
+    onSessionLost?.();
+  }
+  if (!res.ok) throw await parseError(res);
+  return URL.createObjectURL(await res.blob());
 }
 
 /** Downloads a file the API protects (it needs the access token, so a plain link cannot be used). */

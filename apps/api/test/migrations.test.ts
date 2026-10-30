@@ -76,6 +76,9 @@ describe('migration history', () => {
         'event_attendance_settings',
         'certificates',
         'certificate_template',
+        'event_report_inputs',
+        'event_photos',
+        'event_reports',
         'feedback',
       ]) {
         expect(upTables).toContain(table);

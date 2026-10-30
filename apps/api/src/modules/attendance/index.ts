@@ -7,6 +7,7 @@ export {
   attendedUserIds,
   countForEvent as countAttendance,
   findByRegistration as getAttendanceForRegistration,
+  getSettings as getAttendanceSettings,
 } from './repository.js';
 export { attendanceReport, type AttendanceReportRow } from './service.js';
 export type { AttendanceRecord, CheckInMethod, CheckOutMethod } from './repository.js';

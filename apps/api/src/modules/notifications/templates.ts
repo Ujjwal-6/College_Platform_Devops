@@ -148,6 +148,40 @@ const templates = {
       text: `Hello ${d.name},\n\nYour certificate of participation for "${d.eventTitle}" is ready. Sign in to download it:\n${d.url}\n`,
     }),
   },
+  'report.ready': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      version: z.number(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      version: number;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Post-event report ready: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\nVersion ${d.version} of the post-event report for "${d.eventTitle}" is ready. Sign in and open the event page to download it:\n${d.url}\n`,
+    }),
+  },
+  'report.failed': {
+    data: z.object({
+      name: z.string(),
+      eventTitle: z.string(),
+      version: z.number(),
+      url: z.string(),
+    }),
+    render: (d: {
+      name: string;
+      eventTitle: string;
+      version: number;
+      url: string;
+    }): Omit<MailMessage, 'to'> => ({
+      subject: oneLine(`Post-event report could not be made: ${d.eventTitle}`),
+      text: `Hello ${d.name},\n\nVersion ${d.version} of the post-event report for "${d.eventTitle}" could not be made after several tries. An administrator has been told. You can ask for it again from the event page:\n${d.url}\n`,
+    }),
+  },
   'registration.event_cancelled': {
     data: z.object({ name: z.string(), eventTitle: z.string(), url: z.string() }),
     render: (d: { name: string; eventTitle: string; url: string }): Omit<MailMessage, 'to'> => ({
