@@ -235,6 +235,8 @@ Related documents: `architecture.md`, `decisions.md`, `implementation-roadmap.md
 
 ## 12. Event risk/health scoring, conflict prediction, intelligent allocation — R1-lite [P]
 
+> **Dropped (2026-10-27):** the product owner removed this feature from the scope. Nothing below is planned or built; it is kept only as a record of what was once proposed.
+
 **Functional requirements**
 - FR-12.1 Rule-based risk score (0–100) from weighted checks, e.g. approvals pending close to event date, hall capacity vs. expected attendance, equipment shortfall, calendar warnings, budget overrun, low registration rate. [R: rules]
 - FR-12.2 Conflict "prediction" = detecting upcoming clashes (hall, equipment, calendar) before submission and suggesting alternatives. [R: rule-based]
@@ -333,7 +335,7 @@ Load balancing, microservices, Kubernetes, cloud scaling and disaster recovery. 
 - FR-20.2 Booking validation checks the requested range against active entries. A `block` entry rejects the booking. A `warn` entry accepts it but returns the warning, which is stored with the booking and shown to approvers.
 - FR-20.3 Which entry types default to `block` vs. `warn` is configured per entry by the admin (so the policy is data, not code). The defaults and any admin-override-of-a-block are **Unresolved U-3**; default if unanswered: exam periods and holidays = `block`, major fests = `warn`, no override.
 - FR-20.4 Calendar changes are audited. Adding a `block` entry over existing confirmed bookings does not delete them; it produces a conflict report for admins. [R]
-- FR-20.5 The guard is a shared service used by booking (feature 4) and the allocation suggestions (feature 12).
+- FR-20.5 The guard is a shared service used by booking (feature 4). (It was also meant for the allocation suggestions of feature 12, which was dropped.)
 
 **Edge cases:** booking partly overlapping an entry; multi-day entry; booking spanning two entries (one block, one warn → block wins); scoped entry that does not apply to the requested hall/department; entries edited after bookings exist; time zone boundaries at midnight; deactivated entry ignored.
 
