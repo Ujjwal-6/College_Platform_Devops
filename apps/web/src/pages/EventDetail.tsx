@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { EventDetail as Detail } from '../api/types';
 import { EventBookings } from '../components/EventBookings';
+import { EventCertificates } from '../components/EventCertificates';
+import { EventFeedback } from '../components/EventFeedback';
 import { EventRegistration } from '../components/EventRegistration';
 import { levelLabel, StatusBadge } from '../components/StatusBadge';
 import { formatDate, formatDateTime } from '../lib/datetime';
@@ -336,6 +338,8 @@ export function EventDetailPage() {
         </>
       )}
       <EventRegistration key={event.status} event={event} />
+      <EventFeedback key={`feedback-${event.status}`} event={event} />
+      <EventCertificates key={`certificates-${event.status}`} event={event} />
       {event.workflow && <EventBookings key={event.status} event={event} />}
     </article>
   );

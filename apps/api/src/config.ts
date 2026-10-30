@@ -61,6 +61,7 @@ const schema = z.object({
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(20),
   LOGIN_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().min(1).default(900),
   REGISTRATION_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(60),
+  VERIFY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(60),
   INVITATION_CODE_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(20),
   REGISTRATION_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().min(1).default(900),
   LOGIN_LOCKOUT_THRESHOLD: z.coerce.number().int().min(1).default(5),

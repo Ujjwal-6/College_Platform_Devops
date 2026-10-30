@@ -101,6 +101,24 @@ export async function api<T = unknown>(
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
+/** Sends a file as the raw request body (for example a logo image). The API checks what it really is. */
+export async function uploadFile<T = unknown>(path: string, file: File, retry = true): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': file.type };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const res = await fetch(`/api${path}`, {
+    method: 'PUT',
+    headers,
+    credentials: 'include',
+    body: file,
+  });
+  if (res.status === 401 && retry) {
+    if (await refreshSession()) return uploadFile<T>(path, file, false);
+    onSessionLost?.();
+  }
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as T;
+}
+
 /** Downloads a file the API protects (it needs the access token, so a plain link cannot be used). */
 export async function downloadFile(path: string, filename: string, retry = true): Promise<void> {
   const res = await fetch(`/api${path}`, {

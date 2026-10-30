@@ -23,6 +23,12 @@ import {
   teamRoutes,
 } from './modules/registrations/routes.js';
 import { registerAttendanceGuards } from './modules/attendance/hooks.js';
+import {
+  certificateRoutes,
+  certificateTemplateRoutes,
+  eventCertificateRoutes,
+} from './modules/certificates/routes.js';
+import { feedbackRoutes } from './modules/feedback/routes.js';
 import { registerRegistrationHooks } from './modules/registrations/hooks.js';
 import { reservationRoutes, resourceRoutes } from './modules/resources/routes.js';
 import { userRoutes } from './modules/users/routes.js';
@@ -74,6 +80,10 @@ export function createApp(ctx: AppContext): Express {
   app.use('/api/events', approvalRoutes(ctx));
   app.use('/api/events', eventRegistrationRoutes(ctx));
   app.use('/api/events', eventAttendanceRoutes(ctx));
+  app.use('/api/events', eventCertificateRoutes(ctx));
+  app.use('/api/events', feedbackRoutes(ctx));
+  app.use('/api/certificates', certificateRoutes(ctx));
+  app.use('/api/certificate-template', certificateTemplateRoutes(ctx));
   app.use('/api/check-in', checkInRoutes(ctx));
   app.use('/api/registrations', passRoutes(ctx));
   app.use('/api/teams', teamRoutes(ctx));
